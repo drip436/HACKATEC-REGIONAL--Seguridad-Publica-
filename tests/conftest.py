@@ -4,6 +4,7 @@ No toca reflex.db ni el .env del proyecto."""
 from __future__ import annotations
 
 import os
+import tempfile
 import warnings
 from collections.abc import Iterator
 from datetime import timedelta
@@ -14,6 +15,7 @@ import pytest
 
 CLAVE_SENSOR = "clave-sensor-de-pruebas-0123456789"
 CLAVE_OPERADOR = "clave-operador-de-pruebas-0123456789"
+CARPETA_EVIDENCIAS = tempfile.mkdtemp(prefix="sentinel-evidencias-")
 
 # Deben fijarse antes de importar el backend: get_settings() se cachea.
 os.environ.update(
@@ -25,6 +27,7 @@ os.environ.update(
         "SENTINEL_OPERADOR_API_KEY": CLAVE_OPERADOR,
         "SENTINEL_AUTO_REGISTRAR_SENSORES": "true",
         "SENTINEL_CONFIAR_PROXY": "false",
+        "SENTINEL_EVIDENCIAS_DIR": CARPETA_EVIDENCIAS,  # absoluta: no toca static/ del repo
     }
 )
 warnings.filterwarnings("ignore", category=DeprecationWarning)

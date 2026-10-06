@@ -7,3 +7,7 @@ assets/external/
 
 # Secretos locales
 .env
+
+# Edge AI: evidencias locales y pesos del modelo
+static/capturas/
+*.pt
