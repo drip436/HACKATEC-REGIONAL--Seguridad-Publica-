@@ -5,10 +5,11 @@ from .despachos import (
     DespachoIn,
     DespachoOut,
     MiembroFederadoOut,
+    ReintentoDespachoIn,
     SolicitudFederacionIn,
 )
 from .eventos import AlertaSensorIn, EventoOut, MetadatosDeteccion, ValidacionIn
-from .sensores import SensorIn, SensorOut
+from .sensores import SensorIn, SensorOut, SensorUpdateIn
 
 __all__ = [
     "RESPUESTAS_ERROR",
@@ -24,8 +25,10 @@ __all__ = [
     "MiembroFederadoOut",
     "PaginaAuditoria",
     "RegistroAuditoriaOut",
+    "ReintentoDespachoIn",
     "SensorIn",
     "SensorOut",
+    "SensorUpdateIn",
     "SolicitudFederacionIn",
     "ValidacionIn",
     "VerificacionCadenaOut",

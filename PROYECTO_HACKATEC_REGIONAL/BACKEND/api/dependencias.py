@@ -14,8 +14,10 @@ _header_operador = APIKeyHeader(name="X-Operador-Key", scheme_name="OperadorKey"
 
 
 def ip_cliente(request: Request) -> str:
+    # X-Forwarded-For lo puede escribir cualquier cliente: solo se respeta detrás de un
+    # proxy propio (SENTINEL_CONFIAR_PROXY=true); si no, la bitácora registraría IPs falsas.
     reenviada = request.headers.get("x-forwarded-for")
-    if reenviada:
+    if reenviada and get_settings().confiar_proxy:
         return reenviada.split(",")[0].strip()[:64]
     return request.client.host if request.client else "desconocida"
 

@@ -6,10 +6,11 @@ from typing import Any
 import sqlalchemy as sa
 from sqlmodel import Session, col, func, select
 
+from ..errores import SolicitudInvalida
 from ..models import AccionAuditoria, BitacoraAuditoria
 from ..schemas import PaginaAuditoria, VerificacionCadenaOut
 from ..utils.crypto import hash_payload
-from ..utils.tiempo import ahora_utc, iso_utc
+from ..utils.tiempo import a_utc, ahora_utc, iso_utc
 from .db import lectura, transaccion
 from .mapeo import auditoria_a_dto
 
@@ -105,6 +106,12 @@ def consultar(
     consultado_por: str,
     ip_origen: str,
 ) -> PaginaAuditoria:
+    # SQLite descarta la zona horaria al comparar: se normaliza a UTC (como se guardó).
+    desde = a_utc(desde) if desde is not None else None
+    hasta = a_utc(hasta) if hasta is not None else None
+    if desde is not None and hasta is not None and desde > hasta:
+        raise SolicitudInvalida("'desde' no puede ser posterior a 'hasta'.")
+
     filtros: list[Any] = []
     if accion is not None:
         filtros.append(col(BitacoraAuditoria.accion) == accion.value)

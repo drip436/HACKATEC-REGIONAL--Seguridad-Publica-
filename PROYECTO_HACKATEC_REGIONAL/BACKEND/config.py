@@ -5,10 +5,28 @@ import os
 import secrets
 from dataclasses import dataclass
 from functools import lru_cache
+from pathlib import Path
 
 logger = logging.getLogger("sentinelops")
 
 _VERDADEROS = {"1", "true", "yes", "si", "sí", "on"}
+
+
+def _cargar_env_file() -> None:
+    """Carga KEY=VALOR desde .env (ruta en SENTINEL_ENV_FILE o ./.env) sin depender de
+    python-dotenv. Las variables ya definidas en el entorno tienen prioridad."""
+    ruta = Path(os.getenv("SENTINEL_ENV_FILE", ".env"))
+    if not ruta.is_file():
+        return
+    for linea in ruta.read_text(encoding="utf-8").splitlines():
+        linea = linea.strip()
+        if not linea or linea.startswith("#") or "=" not in linea:
+            continue
+        clave, _, valor = linea.removeprefix("export ").partition("=")
+        valor = valor.strip()
+        if len(valor) >= 2 and valor[0] == valor[-1] and valor[0] in "\"'":
+            valor = valor[1:-1]
+        os.environ.setdefault(clave.strip(), valor)
 
 
 def _env_bool(nombre: str, default: bool) -> bool:
@@ -43,12 +61,18 @@ class Settings:
     auto_registrar_sensores: bool
     ws_max_conexiones: int
     tolerancia_reloj_segundos: int
+    confiar_proxy: bool
 
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
+    _cargar_env_file()
+    produccion = os.getenv("SENTINEL_ENTORNO", "desarrollo").strip().lower() == "produccion"
+
     secreto = _env_opcional("SENTINEL_JWT_SECRET")
     if secreto is None:
+        if produccion:
+            raise RuntimeError("SENTINEL_JWT_SECRET es obligatorio con SENTINEL_ENTORNO=produccion.")
         # Secreto efímero: los tokens emitidos dejan de ser verificables al reiniciar.
         secreto = secrets.token_urlsafe(48)
         logger.warning("SENTINEL_JWT_SECRET no definido: usando secreto efímero (solo desarrollo).")
@@ -66,7 +90,12 @@ def get_settings() -> Settings:
         auto_registrar_sensores=_env_bool("SENTINEL_AUTO_REGISTRAR_SENSORES", True),
         ws_max_conexiones=_env_int("SENTINEL_WS_MAX_CONEXIONES", 200),
         tolerancia_reloj_segundos=_env_int("SENTINEL_TOLERANCIA_RELOJ_SEGUNDOS", 300),
+        confiar_proxy=_env_bool("SENTINEL_CONFIAR_PROXY", False),
     )
     if settings.sensor_api_key is None or settings.operador_api_key is None:
+        if produccion:
+            raise RuntimeError(
+                "SENTINEL_SENSOR_API_KEY y SENTINEL_OPERADOR_API_KEY son obligatorias en producción."
+            )
         logger.warning("API keys no configuradas: endpoints abiertos (modo desarrollo).")
     return settings

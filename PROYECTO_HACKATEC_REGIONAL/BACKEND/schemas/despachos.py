@@ -18,6 +18,12 @@ class DespachoIn(BaseModel):
     instrucciones: str | None = Field(default=None, max_length=500)
 
 
+class ReintentoDespachoIn(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    operador_id: IdOperador
+
+
 class DespachoOut(BaseModel):
     id: int
     evento_id: int

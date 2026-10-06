@@ -73,12 +73,14 @@ class EstadoEnvio(StrEnum):
 
 class AccionAuditoria(StrEnum):
     SENSOR_REGISTRADO = "sensor.registrado"
+    SENSOR_ACTUALIZADO = "sensor.actualizado"
     EVENTO_RECIBIDO = "evento.recibido"
     EVENTO_VALIDADO = "evento.validado"
     EVENTO_DESCARTADO = "evento.descartado"
     DESPACHO_EMITIDO = "despacho.emitido"
     DESPACHO_CONFIRMADO = "despacho.confirmado"
     DESPACHO_FALLIDO = "despacho.fallido"
+    DESPACHO_REINTENTADO = "despacho.reintentado"
     FEDERACION_RECIBIDA = "federacion.recibida"
     FEDERACION_RECHAZADA = "federacion.rechazada"
     AUDITORIA_CONSULTADA = "auditoria.consultada"

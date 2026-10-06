@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+from typing import Any
+
 from sqlmodel import col, select
 
 from ..errores import ConflictoEstado, FederacionFallida, RecursoNoEncontrado, SentinelError
-from ..models import AccionAuditoria, DespachoInteroperable, EstadoEnvio, EstadoValidacion
+from ..models import AccionAuditoria, Dependencia, DespachoInteroperable, EstadoEnvio, EstadoValidacion
 from ..schemas import DespachoIn, DespachoOut, SolicitudFederacionIn
 from . import xroad
 from .auditoria import registrar
@@ -72,6 +74,47 @@ def crear_despacho(datos: DespachoIn, *, ip_origen: str) -> DespachoOut:
             },
         )
 
+    return _federar_y_confirmar(despacho_id, dependencia, mensaje, payload)
+
+
+def reintentar_despacho(despacho_id: int, *, operador_id: str, ip_origen: str) -> DespachoOut:
+    """Re-firma (nuevo `jti`) y vuelve a federar un despacho que quedó en `enviado`
+    porque la federación falló. El token anterior queda invalidado por el nuevo."""
+    with transaccion() as session:
+        despacho = session.get(DespachoInteroperable, despacho_id)
+        if despacho is None:
+            raise RecursoNoEncontrado(f"Despacho {despacho_id} no encontrado.", detalle={"despacho_id": despacho_id})
+        if despacho.estado_envio != EstadoEnvio.ENVIADO.value:
+            raise ConflictoEstado(
+                "Solo se reintentan despachos en estado 'enviado' (federación fallida).",
+                detalle={"despacho_id": despacho_id, "estado_envio": despacho.estado_envio},
+            )
+        dependencia = Dependencia(despacho.dependencia_destino)
+        evento, sensor = cargar_evento_con_sensor(session, despacho.evento_id)
+        payload = xroad.construir_payload_federado(evento, sensor, instrucciones=despacho.instrucciones)
+        mensaje = xroad.firmar_mensaje(payload, dependencia=dependencia, despacho_id=despacho_id)
+        jti_anterior = despacho.token_jti
+        despacho.token_interoperabilidad = mensaje.token
+        despacho.token_jti = mensaje.jti
+        despacho.payload_hash = mensaje.payload_sha256
+        despacho.timestamp_despacho = mensaje.emitido_en
+        session.add(despacho)
+        registrar(
+            session,
+            accion=AccionAuditoria.DESPACHO_REINTENTADO,
+            usuario_o_nodo=f"operador:{operador_id}",
+            ip_origen=ip_origen,
+            entidad="despachos_interoperables",
+            entidad_id=despacho_id,
+            detalle={"jti_anterior": jti_anterior, "jti": mensaje.jti, "payload_sha256": mensaje.payload_sha256},
+        )
+
+    return _federar_y_confirmar(despacho_id, dependencia, mensaje, payload)
+
+
+def _federar_y_confirmar(
+    despacho_id: int, dependencia: Dependencia, mensaje: xroad.MensajeFirmado, payload: dict[str, Any]
+) -> DespachoOut:
     try:
         acuse = xroad.recibir_federacion(
             SolicitudFederacionIn(token=mensaje.token, payload=payload), ip_origen=IP_NODO_INTERNO
