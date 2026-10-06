@@ -2,8 +2,8 @@
 
 import reflex as rx
 
-from ..estilos import ACENTO, BORDE, FONDO, TEXTO, TEXTO_2, TEXTO_3
-from ..state import State
+from ...estilos import ACENTO, BORDE, FONDO, TEXTO, TEXTO_2, TEXTO_3
+from ...state import State
 from .modal_validacion import modal_validacion
 
 PAGINAS = [("Operación", "/"), ("Analítica", "/analitica"), ("Auditoría", "/auditoria")]

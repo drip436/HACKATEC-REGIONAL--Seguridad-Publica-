@@ -1,4 +1,4 @@
-# Backend SentinelOps. Requiere Python >= 3.11 (usa enum.StrEnum).
+# SentinelOps (backend + dashboard). Requiere Python >= 3.11 (usa enum.StrEnum).
 # Reflex no instala FastAPI, SQLModel/SQLAlchemy, Pydantic ni PyJWT: se declaran aquí.
 reflex==0.9.12
 fastapi>=0.115,<1
@@ -8,7 +8,7 @@ sqlmodel>=0.0.22
 PyJWT>=2.8,<3
 psycopg[binary]>=3.2,<4
 python-dotenv>=1.0,<2
-# Dashboard: cliente de la API (REST + WebSocket)
-httpx
-websockets
+# Frontend (api_client.py): cliente REST y WebSocket hacia la API.
+httpx>=0.27,<1
+websockets>=13,<16
 

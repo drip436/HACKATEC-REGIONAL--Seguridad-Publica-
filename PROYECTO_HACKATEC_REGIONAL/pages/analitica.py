@@ -1,8 +1,8 @@
 import reflex as rx
 
-from ..components.graficas import eventos_por_hora, filtros, matriz_semanal, rondines_sugeridos
-from ..components.layout import pagina
-from ..components.mapa import mapa_de_calor
+from ..FRONTEND.components.graficas import eventos_por_hora, filtros, matriz_semanal, rondines_sugeridos
+from ..FRONTEND.components.layout import pagina
+from ..FRONTEND.components.mapa import mapa_de_calor
 
 
 def analitica() -> rx.Component:

@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 
 import reflex as rx
 from dotenv import load_dotenv
@@ -7,7 +8,13 @@ load_dotenv()  # Lee .env; las variables ya definidas en el entorno tienen prior
 
 # El hot reload de Reflex vigila toda la raíz y no ignora imágenes: cada foto de
 # evidencia que guarda el sensor reiniciaría el backend (y cortaría los WebSocket).
-os.environ.setdefault("REFLEX_HOT_RELOAD_EXCLUDE_PATHS", "static:EDGE_AI")
+# Reflex exige que las rutas excluidas existan, así que la carpeta se crea antes.
+_RAIZ = Path(__file__).resolve().parent
+(_RAIZ / "static" / "capturas").mkdir(parents=True, exist_ok=True)
+os.environ.setdefault(
+    "REFLEX_HOT_RELOAD_EXCLUDE_PATHS",
+    ":".join(nombre for nombre in ("static", "EDGE_AI") if (_RAIZ / nombre).is_dir()),
+)
 
 
 def _db_url() -> str:

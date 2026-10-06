@@ -93,6 +93,15 @@ def _campos_despacho(despacho: dict) -> dict:
     return {"estado": "validado", "despacho": f"{destino} (sin acuse)", "folio": ""}
 
 
+def _url_evidencia(evidencia: str) -> str:
+    """URL de la captura. El backend la protege con la llave de operador y un
+    <img> no envía headers, así que la llave viaja como ?token=."""
+    if not evidencia.startswith("/"):
+        return evidencia
+    llave = os.environ.get("SENTINEL_OPERADOR_API_KEY", "").strip()
+    return base_url() + evidencia + (f"?token={llave}" if llave else "")
+
+
 def _alerta(evento: dict, despacho: dict | None = None) -> dict:
     evidencia = evento.get("evidencia_url") or ""
     alerta = {
@@ -104,7 +113,7 @@ def _alerta(evento: dict, despacho: dict | None = None) -> dict:
         "timestamp": evento["fecha_deteccion"],
         "lat": evento["coordenadas"]["lat"],
         "lng": evento["coordenadas"]["lng"],
-        "snapshot_url": base_url() + evidencia if evidencia.startswith("/") else evidencia,
+        "snapshot_url": _url_evidencia(evidencia),
         "estado": _ESTADO.get(evento["estado_validacion"], evento["estado_validacion"]),
         "despacho": "",
         "folio": "",
