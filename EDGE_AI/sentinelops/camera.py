@@ -16,11 +16,15 @@ class CameraError(RuntimeError):
 
 
 class Camera:
-    """Wrapper sobre `cv2.VideoCapture` con validación y tolerancia a fallos."""
+    """Wrapper sobre `cv2.VideoCapture` con validación y tolerancia a fallos.
+
+    `index` acepta lo mismo que `cv2.VideoCapture`: un índice de dispositivo,
+    la ruta de un archivo de video o la URL de un stream.
+    """
 
     def __init__(
         self,
-        index: int,
+        index: int | str,
         width: int,
         height: int,
         max_failures: int,
@@ -42,7 +46,7 @@ class Camera:
         if not capture.isOpened():
             capture.release()
             raise CameraError(
-                f"No se pudo abrir la cámara con índice {self._index}. "
+                f"No se pudo abrir la fuente de video {self._index!r}. "
                 "Verifica que esté conectada y que ningún otro proceso la use."
             )
 
@@ -53,7 +57,7 @@ class Camera:
         if not ok or frame is None or frame.size == 0:
             capture.release()
             raise CameraError(
-                f"La cámara {self._index} se abrió pero no entrega frames."
+                f"La fuente {self._index!r} se abrió pero no entrega frames."
             )
 
         self._capture = capture
@@ -61,7 +65,7 @@ class Camera:
         actual_w = int(capture.get(cv2.CAP_PROP_FRAME_WIDTH))
         actual_h = int(capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
         LOGGER.info(
-            "Cámara %d abierta (%dx%d solicitado, %dx%d real)",
+            "Fuente %s abierta (%dx%d solicitado, %dx%d real)",
             self._index,
             self._width,
             self._height,
@@ -93,7 +97,7 @@ class Camera:
             )
             if self._consecutive_failures >= self._max_failures:
                 raise CameraError(
-                    f"La cámara {self._index} falló "
+                    f"La fuente {self._index!r} falló "
                     f"{self._consecutive_failures} lecturas consecutivas."
                 )
 
@@ -101,7 +105,7 @@ class Camera:
         if self._capture is not None:
             self._capture.release()
             self._capture = None
-            LOGGER.info("Cámara %d liberada", self._index)
+            LOGGER.info("Fuente %s liberada", self._index)
 
     def __enter__(self) -> Camera:
         self.open()
