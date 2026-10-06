@@ -4,6 +4,8 @@ import reflex as rx
 
 from rxconfig import config
 
+from .BACKEND import crear_api, inicializar_bd
+
 
 class State(rx.State):
     """The app state."""
@@ -32,5 +34,6 @@ def index() -> rx.Component:
     )
 
 
-app = rx.App()
+app = rx.App(api_transformer=crear_api())
+app.register_lifespan_task(inicializar_bd)
 app.add_page(index)
