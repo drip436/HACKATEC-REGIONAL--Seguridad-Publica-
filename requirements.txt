@@ -8,3 +8,7 @@ sqlmodel>=0.0.22
 PyJWT>=2.8,<3
 psycopg[binary]>=3.2,<4
 python-dotenv>=1.0,<2
+# Dashboard: cliente de la API (REST + WebSocket)
+httpx
+websockets
+

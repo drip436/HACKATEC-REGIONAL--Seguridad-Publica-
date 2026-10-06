@@ -11,3 +11,5 @@ assets/external/
 # Edge AI: evidencias locales y pesos del modelo
 static/capturas/
 *.pt
+.venv/
+reflex.log
