@@ -8,6 +8,7 @@ from .manejadores_error import registrar_manejadores
 from .rutas_auditoria import router as auditoria_router
 from .rutas_despachos import router as despachos_router
 from .rutas_eventos import router as eventos_router
+from .rutas_evidencias import router as evidencias_router
 from .rutas_interoperabilidad import router as interop_router
 from .rutas_sensores import router as sensores_router
 from .rutas_websocket import router as ws_router
@@ -35,6 +36,7 @@ def crear_api() -> FastAPI:
             {"name": "Interoperabilidad X-Road", "description": "Nodo federado simulado."},
             {"name": "Auditoría", "description": "Bitácora inmutable encadenada por SHA-256."},
             {"name": "Sensores", "description": "Inventario de cámaras y sensores."},
+            {"name": "Evidencias", "description": "Fotogramas del Edge AI (requieren clave de operador)."},
             {"name": "Sistema", "description": "Salud del servicio."},
         ],
     )
@@ -50,4 +52,5 @@ def crear_api() -> FastAPI:
 
     api.include_router(v1)
     api.include_router(ws_router)
+    api.include_router(evidencias_router)
     return api

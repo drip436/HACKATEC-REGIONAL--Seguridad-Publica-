@@ -33,13 +33,16 @@ _TRIGGERS_SQLITE = (
     """,
 )
 
+_TABLAS = ("camaras_sensores", "eventos_detectados", "despachos_interoperables", "bitacora_auditoria")
+
 _TRIGGERS_POSTGRES = (
     """
-    CREATE OR REPLACE FUNCTION fn_bitacora_append_only() RETURNS trigger AS $$
+    CREATE OR REPLACE FUNCTION fn_bitacora_append_only() RETURNS trigger
+    LANGUAGE plpgsql SET search_path = '' AS $$
     BEGIN
         RAISE EXCEPTION 'bitacora_auditoria es append-only';
     END;
-    $$ LANGUAGE plpgsql;
+    $$;
     """,
     "DROP TRIGGER IF EXISTS trg_bitacora_append_only ON bitacora_auditoria;",
     """
@@ -47,6 +50,17 @@ _TRIGGERS_POSTGRES = (
     BEFORE UPDATE OR DELETE ON bitacora_auditoria
     FOR EACH ROW EXECUTE FUNCTION fn_bitacora_append_only();
     """,
+    # Los triggers por fila no se disparan con TRUNCATE, que vaciaría la bitácora entera.
+    "DROP TRIGGER IF EXISTS trg_bitacora_no_truncate ON bitacora_auditoria;",
+    """
+    CREATE TRIGGER trg_bitacora_no_truncate
+    BEFORE TRUNCATE ON bitacora_auditoria
+    FOR EACH STATEMENT EXECUTE FUNCTION fn_bitacora_append_only();
+    """,
+    # Supabase expone el esquema public por su API REST con la llave anon (pública).
+    # RLS activado y sin políticas = esa API no ve nada; el backend se conecta como
+    # dueño de las tablas y no se ve afectado.
+    *(f"ALTER TABLE {tabla} ENABLE ROW LEVEL SECURITY;" for tabla in _TABLAS),
 )
 
 

@@ -10,6 +10,8 @@ from pathlib import Path
 logger = logging.getLogger("sentinelops")
 
 _VERDADEROS = {"1", "true", "yes", "si", "sí", "on"}
+# Raíz del repositorio: rutas relativas fijas sin depender del directorio de arranque.
+RAIZ_PROYECTO = Path(__file__).resolve().parents[2]
 
 
 def _cargar_env_file() -> None:
@@ -62,6 +64,7 @@ class Settings:
     ws_max_conexiones: int
     tolerancia_reloj_segundos: int
     confiar_proxy: bool
+    evidencias_dir: Path
 
 
 @lru_cache(maxsize=1)
@@ -91,6 +94,8 @@ def get_settings() -> Settings:
         ws_max_conexiones=_env_int("SENTINEL_WS_MAX_CONEXIONES", 200),
         tolerancia_reloj_segundos=_env_int("SENTINEL_TOLERANCIA_RELOJ_SEGUNDOS", 300),
         confiar_proxy=_env_bool("SENTINEL_CONFIAR_PROXY", False),
+        # Misma carpeta donde el sensor Edge AI guarda las capturas (EDGE_AI/sentinelops/config.py).
+        evidencias_dir=RAIZ_PROYECTO / os.getenv("SENTINEL_EVIDENCIAS_DIR", "static/capturas"),
     )
     if settings.sensor_api_key is None or settings.operador_api_key is None:
         if produccion:
