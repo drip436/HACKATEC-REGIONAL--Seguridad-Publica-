@@ -2,10 +2,10 @@
 
 import reflex as rx
 
-from .. import campus
-from ..estilos import COLOR_SEVERIDAD, TEXTO_2, TEXTO_3, tarjeta, titulo
-from ..modelos import SEVERIDADES
-from ..state import State
+from ... import campus
+from ...estilos import COLOR_SEVERIDAD, TEXTO_2, TEXTO_3, tarjeta, titulo
+from ...modelos import SEVERIDADES
+from ...state import State
 
 _ruta = rx.asset("mapa_leaflet.jsx", shared=True)
 

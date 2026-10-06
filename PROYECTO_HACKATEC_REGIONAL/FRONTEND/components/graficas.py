@@ -2,9 +2,9 @@
 
 import reflex as rx
 
-from ..estilos import ACENTO, TEXTO, TEXTO_2, TEXTO_3, tarjeta, titulo
-from ..modelos import TIPOS, TODOS
-from ..state import State
+from ...estilos import ACENTO, TEXTO, TEXTO_2, TEXTO_3, tarjeta, titulo
+from ...modelos import TIPOS, TODOS
+from ...state import State
 
 _REJILLA = "rgba(148, 163, 184, 0.18)"
 

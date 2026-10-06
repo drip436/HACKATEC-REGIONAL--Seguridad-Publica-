@@ -15,6 +15,7 @@ import time
 from datetime import datetime
 
 import httpx
+from dotenv import load_dotenv
 
 from . import mock
 
@@ -81,6 +82,7 @@ def enviar(cliente: httpx.Client, evento: dict, *, historico: bool = False) -> N
 
 
 def main() -> None:
+    load_dotenv()  # mismas llaves que el backend (SENTINEL_SENSOR_API_KEY / SENTINEL_OPERADOR_API_KEY)
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--url", default=os.environ.get("SENTINEL_API_URL", "http://localhost:8000"))
     parser.add_argument("--historico", type=int, metavar="DIAS", help="siembra eventos de los últimos DIAS días")

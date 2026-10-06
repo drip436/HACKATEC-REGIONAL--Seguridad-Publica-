@@ -2,8 +2,8 @@
 
 import reflex as rx
 
-from ..estilos import TEXTO, TEXTO_2, TEXTO_3, insignia_estado, insignia_severidad, tarjeta, titulo
-from ..state import State
+from ...estilos import TEXTO, TEXTO_2, TEXTO_3, insignia_estado, insignia_severidad, tarjeta, titulo
+from ...state import State
 
 
 def alert_item(alerta) -> rx.Component:

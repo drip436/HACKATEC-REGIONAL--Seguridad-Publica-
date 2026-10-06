@@ -2,9 +2,9 @@
 
 import reflex as rx
 
-from ..estilos import BORDE, TEXTO_2, TEXTO_3, insignia_estado, insignia_severidad
-from ..modelos import DESTINOS, MOTIVOS_DESCARTE
-from ..state import State
+from ...estilos import BORDE, TEXTO_2, TEXTO_3, insignia_estado, insignia_severidad
+from ...modelos import DESTINOS, MOTIVOS_DESCARTE
+from ...state import State
 
 
 def _captura(alerta) -> rx.Component:

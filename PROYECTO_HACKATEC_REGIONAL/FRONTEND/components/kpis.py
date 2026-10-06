@@ -2,8 +2,8 @@
 
 import reflex as rx
 
-from ..estilos import TEXTO, TEXTO_2, TEXTO_3, tarjeta
-from ..state import State
+from ...estilos import TEXTO, TEXTO_2, TEXTO_3, tarjeta
+from ...state import State
 
 
 def stat_card(titulo: str, valor, pista) -> rx.Component:

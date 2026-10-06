@@ -1,6 +1,6 @@
 import reflex as rx
 
-from ..components.layout import pagina
+from ..FRONTEND.components.layout import pagina
 from ..estilos import TEXTO_2, TEXTO_3, tarjeta, titulo
 from ..state import State
 
