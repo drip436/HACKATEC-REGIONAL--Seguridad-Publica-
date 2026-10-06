@@ -12,7 +12,7 @@ ACENTO = "#38bdf8"
 
 # Colores de estado: reservados para severidad y estado, nunca para series.
 COLOR_SEVERIDAD = {"critica": "#f43f5e", "alta": "#f97316", "media": "#fbbf24", "baja": "#22c55e"}
-COLOR_ESTADO = {"pendiente": "#fbbf24", "confirmado": "#22c55e", "descartado": "#94a3b8"}
+COLOR_ESTADO = {"pendiente": "#fbbf24", "validado": "#38bdf8", "confirmado": "#22c55e", "descartado": "#94a3b8"}
 
 TARJETA = {
     "width": "100%",
@@ -52,4 +52,4 @@ def insignia_severidad(alerta) -> rx.Component:
 
 
 def insignia_estado(alerta) -> rx.Component:
-    return _insignia(alerta["estado"].capitalize(), alerta["estado"], COLOR_ESTADO)
+    return _insignia(alerta["estado_txt"], alerta["estado"], COLOR_ESTADO)

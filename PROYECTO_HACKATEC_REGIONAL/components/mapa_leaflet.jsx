@@ -70,6 +70,11 @@ export function MapaLeaflet({
     };
   }, []);
 
+  // El centro se conoce hasta que carga el inventario de cámaras.
+  useEffect(() => {
+    if (mapa.current) mapa.current.setView(centro, mapa.current.getZoom(), { animate: false });
+  }, [centro[0], centro[1]]);
+
   useEffect(() => {
     const capa = capas.current.cuadrantes.clearLayers();
     cuadrantes.forEach((q) =>

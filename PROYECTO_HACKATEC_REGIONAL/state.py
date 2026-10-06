@@ -6,19 +6,25 @@ from collections import Counter, defaultdict
 from datetime import datetime, timedelta
 from typing import TypedDict
 
-import httpx
 import reflex as rx
 
-from . import api_client
+from . import api_client, campus
 from .modelos import (
     ALERTA_VACIA,
     DESTINOS,
+    TIPOS,
+    TODOS,
     Alerta,
     Camara,
+    Cuadrante,
     EntradaBitacora,
     EventoHistorico,
+    a_local,
+    con_derivados,
     normalizar_alerta,
 )
+
+DESTINO_INICIAL = next(iter(DESTINOS))
 
 # Identifica a este proceso del backend: una escucha registrada por un proceso
 # anterior (recarga en caliente, reinicio) ya no existe y debe relanzarse.
@@ -72,10 +78,13 @@ class State(rx.State):
     camaras: list[Camara] = []
     historico: list[EventoHistorico] = []
     bitacora: list[EntradaBitacora] = []
+    integridad: str = ""
+    centro: list[float] = campus.CENTRO_DEFECTO
+    cuadrantes: list[Cuadrante] = campus.calcular_cuadrantes([])
 
     seleccion_id: str = ""
     modal_abierto: bool = False
-    destino: str = DESTINOS[0]
+    destino: str = DESTINO_INICIAL
     motivo: str = ""
     procesando: bool = False
 
@@ -83,7 +92,7 @@ class State(rx.State):
     operador: str = "OP-01"
     modo_simulado: bool = api_client.MOCK
 
-    filtro_tipo: str = "todos"
+    filtro_tipo: str = TODOS
     filtro_dias: str = "30"
 
     _escucha: str = ""
@@ -116,10 +125,10 @@ class State(rx.State):
 
     @rx.var
     def tasa_confirmacion(self) -> str:
-        validadas = [a for a in self.alertas if a["estado"] != "pendiente"]
-        if not validadas:
+        resueltas = [a for a in self.alertas if a["estado"] != "pendiente"]
+        if not resueltas:
             return "—"
-        return f"{sum(a['estado'] == 'confirmado' for a in validadas) / len(validadas):.0%}"
+        return f"{sum(a['estado'] != 'descartado' for a in resueltas) / len(resueltas):.0%}"
 
     @rx.var
     def camaras_activas(self) -> str:
@@ -131,13 +140,10 @@ class State(rx.State):
         desde = datetime.now().astimezone() - timedelta(days=int(self.filtro_dias))
         filtrado = []
         for evento in self.historico:
-            if self.filtro_tipo != "todos" and evento["tipo"] != self.filtro_tipo:
+            if self.filtro_tipo != TODOS and TIPOS.get(evento["tipo"]) != self.filtro_tipo:
                 continue
-            try:
-                momento = datetime.fromisoformat(evento["timestamp"]).astimezone()
-            except ValueError:
-                continue
-            if momento >= desde:
+            momento = a_local(evento["timestamp"])
+            if momento and momento >= desde:
                 filtrado.append((momento, evento))
         return filtrado
 
@@ -205,60 +211,106 @@ class State(rx.State):
 
     # ---- Carga y alertas en vivo -----------------------------------------
 
-    def _registrar(self, actor: str, accion: str, evento_id: str, detalle: str = "", folio: str = "", timestamp: str = ""):
-        timestamp = timestamp or datetime.now().astimezone().isoformat(timespec="seconds")
+    def _registrar(self, actor: str, accion: str, entidad: str, detalle: str = "", sello: str = ""):
+        """Bitácora local, solo en modo simulado: con backend la lleva el servidor."""
+        if not api_client.MOCK:
+            return
+        ahora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         self.bitacora.insert(
             0,
-            {
-                "timestamp": timestamp.replace("T", " ")[:19],
-                "actor": actor,
-                "accion": accion,
-                "evento_id": evento_id,
-                "detalle": detalle,
-                "folio": folio,
-            },
+            {"timestamp": ahora, "actor": actor, "accion": accion, "entidad": entidad, "detalle": detalle, "sello": sello},
         )
+
+    def _fijar_camaras(self, camaras: list[Camara]):
+        """Guarda el inventario y recalcula la geometría que depende de él."""
+        self.camaras = camaras
+        self.centro = campus.centro_de(camaras)
+        self.cuadrantes = campus.calcular_cuadrantes(camaras)
+        self.alertas = [
+            {**a, "cuadrante": campus.cuadrante_de(a["lat"], a["lng"], self.cuadrantes)} for a in self.alertas
+        ]
+        self._fijar_historico(self.historico)
+
+    def _fijar_historico(self, historico: list[EventoHistorico]):
+        self.historico = [
+            {**e, "cuadrante": campus.cuadrante_de(e["lat"], e["lng"], self.cuadrantes)} for e in historico
+        ]
 
     def _agregar_alerta(self, evento: dict):
         alerta = normalizar_alerta(evento)
-        if alerta["snapshot_url"].startswith("/"):
-            alerta["snapshot_url"] = api_client.API_URL + alerta["snapshot_url"]
         if not alerta["id"] or self._indice(alerta["id"]) >= 0:
             return
+        alerta["cuadrante"] = campus.cuadrante_de(alerta["lat"], alerta["lng"], self.cuadrantes)
         self.alertas.insert(0, alerta)
         del self.alertas[MAX_ALERTAS:]
         self._registrar(
-            f"Edge {alerta['camara_id']}",
-            "Detección",
-            alerta["id"],
+            f"sensor:{alerta['camara_id']}",
+            "evento.recibido",
+            f"evento {alerta['id']}",
             f"{alerta['tipo_txt']} · severidad {alerta['sev_txt']} · confianza {alerta['confianza_txt']}",
-            timestamp=alerta["timestamp"],
         )
         if not self.seleccion_id:
             self.seleccion_id = alerta["id"]
         if alerta["severidad"] == "critica" and alerta["estado"] == "pendiente" and not self.modal_abierto:
             self._abrir(alerta["id"])
 
+    def _aplicar_cambio(self, alerta_id: str, **cambios):
+        i = self._indice(alerta_id)
+        if i < 0:
+            return
+        # Un aviso tardío de "validado" no debe pisar un despacho ya confirmado.
+        if self.alertas[i]["estado"] == "confirmado" and cambios.get("estado") == "validado":
+            return
+        self.alertas[i] = con_derivados({**self.alertas[i], **cambios})
+
     @rx.event
     async def iniciar(self):
         """Carga inicial (una vez por sesión) y arranque de la escucha en vivo."""
-        if not self.camaras:
+        if not self.camaras and not self.alertas:
             try:
-                self.camaras = await api_client.obtener_camaras()
-                self.historico = await api_client.obtener_historico()
-                self.bitacora = [
-                    {"timestamp": "", "actor": "", "accion": "", "evento_id": "", "detalle": "", "folio": "", **e}
-                    for e in await api_client.obtener_auditoria()
-                ]
+                self._fijar_camaras(await api_client.obtener_camaras())
                 for evento in reversed(await api_client.obtener_eventos()):
                     self._agregar_alerta(evento)
-                if self.alertas and not self.modal_abierto:
-                    self.seleccion_id = self.alertas[0]["id"]
-            except httpx.HTTPError as error:
+                self._fijar_historico(await api_client.obtener_historico())
+            except api_client.ErrorAPI as error:
                 self.conexion = "Sin API"
-                yield rx.toast.error(f"No se pudo cargar desde {api_client.API_URL}: {error}")
+                yield rx.toast.error(str(error))
+            if self.alertas and not self.modal_abierto:
+                self.seleccion_id = self.alertas[0]["id"]
         if self._escucha != ID_PROCESO:
             yield State.escuchar_alertas
+
+    @rx.event
+    async def cargar_historico(self):
+        """Refresca el histórico al entrar a Analítica."""
+        try:
+            self._fijar_historico(await api_client.obtener_historico())
+        except api_client.ErrorAPI as error:
+            yield rx.toast.error(str(error))
+
+    @rx.event
+    async def cargar_bitacora(self):
+        if api_client.MOCK:
+            return
+        try:
+            self.bitacora = await api_client.obtener_auditoria()
+        except api_client.ErrorAPI as error:
+            yield rx.toast.error(str(error))
+
+    @rx.event
+    async def verificar_bitacora(self):
+        if api_client.MOCK:
+            self.integridad = "Sin verificación en modo simulado"
+            return
+        try:
+            resultado = await api_client.verificar_auditoria()
+        except api_client.ErrorAPI as error:
+            yield rx.toast.error(str(error))
+            return
+        if resultado["integra"]:
+            self.integridad = f"Cadena íntegra · {resultado['registros_verificados']} registros verificados"
+        else:
+            self.integridad = f"Cadena alterada en el registro {resultado.get('primer_registro_invalido')}: {resultado.get('motivo')}"
 
     @rx.event(background=True)
     async def escuchar_alertas(self):
@@ -271,11 +323,24 @@ class State(rx.State):
             async for clase, dato in api_client.flujo_alertas():
                 if not _cliente_conectado(token):
                     break
+                sensor_nuevo = False
                 async with self:
                     if clase == "estado":
                         self.conexion = str(dato)
-                    elif isinstance(dato, dict):
+                    elif clase == "alerta" and isinstance(dato, dict):
                         self._agregar_alerta(dato)
+                        sensor_nuevo = all(c["id"] != dato.get("camara_id") for c in self.camaras)
+                    elif clase == "cambio" and isinstance(dato, dict):
+                        cambio = dict(dato)
+                        self._aplicar_cambio(cambio.pop("id"), **cambio)
+                if sensor_nuevo:
+                    # El backend autorregistra sensores desconocidos: se relee el inventario.
+                    try:
+                        camaras = await api_client.obtener_camaras()
+                    except api_client.ErrorAPI:
+                        continue
+                    async with self:
+                        self._fijar_camaras(camaras)
         finally:
             async with self:
                 self._escucha = ""
@@ -284,7 +349,7 @@ class State(rx.State):
 
     def _abrir(self, alerta_id: str):
         self.seleccion_id = alerta_id
-        self.destino = DESTINOS[0]
+        self.destino = DESTINO_INICIAL
         self.motivo = ""
         self.modal_abierto = True
 
@@ -319,37 +384,35 @@ class State(rx.State):
     def set_filtro_dias(self, dias: str | list[str]):
         self.filtro_dias = str(dias)
 
-    def _resolver(self, alerta_id: str, **cambios):
-        i = self._indice(alerta_id)
-        if i >= 0:
-            self.alertas[i] = {**self.alertas[i], **cambios}
-        self.procesando = False
-        self.modal_abierto = False
-
     @rx.event
     async def confirmar(self):
+        """Valida (si sigue pendiente) y despacha. Son dos pasos en el backend: si el
+        despacho falla, el evento queda validado y se puede reintentar desde el modal."""
         alerta = self.alerta_sel
-        if alerta["estado"] != "pendiente" or self.procesando:
+        if alerta["estado"] not in ("pendiente", "validado") or self.procesando:
             return
+        alerta_id, destino = alerta["id"], self.destino
         self.procesando = True
         yield
         try:
-            resultado = await api_client.confirmar(alerta["id"], self.operador, self.destino)
-        except httpx.HTTPError as error:
+            if alerta["estado"] == "pendiente":
+                self._aplicar_cambio(alerta_id, **await api_client.validar(alerta_id, self.operador, confirma=True))
+                self._registrar(f"operador:{self.operador}", "evento.validado", f"evento {alerta_id}")
+            resultado = await api_client.despachar(alerta_id, self.operador, destino)
+        except api_client.ErrorAPI as error:
             self.procesando = False
-            yield rx.toast.error(f"No se pudo despachar: {error}")
+            yield rx.toast.error(f"No se completó el despacho: {error}")
             return
-        folio = str(resultado.get("folio", ""))
-        self._resolver(alerta["id"], estado="confirmado", despacho=self.destino, folio=folio)
+        self._aplicar_cambio(alerta_id, **resultado)
+        self.procesando = False
+        if resultado["estado"] != "confirmado":
+            yield rx.toast.warning(f"Despacho a {destino} emitido, pero sin acuse. Puedes reintentar.")
+            return
+        self.modal_abierto = False
         self._registrar(
-            f"Operador {self.operador}",
-            "Confirmación y despacho",
-            alerta["id"],
-            f"Despachado a {self.destino}",
-            folio,
-            str(resultado.get("timestamp", "")),
+            f"operador:{self.operador}", "despacho.confirmado", f"evento {alerta_id}", f"Despachado a {destino}", resultado["folio"]
         )
-        yield rx.toast.success(f"Despachado a {self.destino} · folio {folio}")
+        yield rx.toast.success(f"Despachado a {destino} · acuse {resultado['folio']}")
 
     @rx.event
     async def descartar(self):
@@ -359,21 +422,17 @@ class State(rx.State):
         if not self.motivo:
             yield rx.toast.warning("Selecciona un motivo para descartar la alerta.")
             return
+        alerta_id, motivo = alerta["id"], self.motivo
         self.procesando = True
         yield
         try:
-            resultado = await api_client.descartar(alerta["id"], self.operador, self.motivo)
-        except httpx.HTTPError as error:
+            resultado = await api_client.validar(alerta_id, self.operador, confirma=False, notas=motivo)
+        except api_client.ErrorAPI as error:
             self.procesando = False
             yield rx.toast.error(f"No se pudo descartar: {error}")
             return
-        self._resolver(alerta["id"], estado="descartado", despacho=f"Descartada: {self.motivo}")
-        self._registrar(
-            f"Operador {self.operador}",
-            "Descarte",
-            alerta["id"],
-            f"Motivo: {self.motivo}",
-            timestamp=str(resultado.get("timestamp", "")),
-        )
-        yield rx.toast.info(f"Alerta {alerta['id']} descartada.")
-
+        self._aplicar_cambio(alerta_id, **resultado)
+        self.procesando = False
+        self.modal_abierto = False
+        self._registrar(f"operador:{self.operador}", "evento.descartado", f"evento {alerta_id}", f"Motivo: {motivo}")
+        yield rx.toast.info(f"Alerta {alerta_id} descartada.")

@@ -3,6 +3,7 @@
 import reflex as rx
 
 from ..estilos import ACENTO, TEXTO, TEXTO_2, TEXTO_3, tarjeta, titulo
+from ..modelos import TIPOS, TODOS
 from ..state import State
 
 _REJILLA = "rgba(148, 163, 184, 0.18)"
@@ -12,13 +13,7 @@ def filtros() -> rx.Component:
     return rx.flex(
         rx.hstack(
             rx.text("Tipo", size="2", color=TEXTO_2),
-            rx.segmented_control.root(
-                rx.segmented_control.item("Todos", value="todos"),
-                rx.segmented_control.item("Intrusión", value="intrusion"),
-                rx.segmented_control.item("Aglomeración", value="aglomeracion"),
-                value=State.filtro_tipo,
-                on_change=State.set_filtro_tipo,
-            ),
+            rx.select([TODOS, *TIPOS.values()], value=State.filtro_tipo, on_change=State.set_filtro_tipo),
             align="center",
             spacing="2",
             wrap="wrap",

@@ -11,5 +11,15 @@ from .state import State
 app = rx.App(api_transformer=crear_api())
 app.register_lifespan_task(inicializar_bd)
 app.add_page(operacion, route="/", title="SentinelOps · Operación", on_load=State.iniciar)
-app.add_page(analitica, route="/analitica", title="SentinelOps · Analítica", on_load=State.iniciar)
-app.add_page(auditoria, route="/auditoria", title="SentinelOps · Auditoría", on_load=State.iniciar)
+app.add_page(
+    analitica,
+    route="/analitica",
+    title="SentinelOps · Analítica",
+    on_load=[State.iniciar, State.cargar_historico],
+)
+app.add_page(
+    auditoria,
+    route="/auditoria",
+    title="SentinelOps · Auditoría",
+    on_load=[State.iniciar, State.cargar_bitacora],
+)

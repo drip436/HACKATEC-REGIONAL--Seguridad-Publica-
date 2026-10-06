@@ -1,23 +1,41 @@
-"""Contrato de datos compartido con Dev 1 (Edge AI) y Dev 2 (API).
+"""Modelo de datos interno del dashboard.
 
-Solo viajan metadatos del evento: nada de biometría ni identidad de personas.
+`api_client.py` traduce los DTO de la API central (BACKEND/schemas) a estas
+formas. Solo viajan metadatos del evento: nada de biometría ni identidad.
 """
 
 from datetime import datetime
 from typing import TypedDict
 
-TIPOS = {"intrusion": "Intrusión", "aglomeracion": "Aglomeración"}
+# Vocabulario canónico del backend (BACKEND/models/enums.py).
+TIPOS = {
+    "traspaso_perimetro": "Traspaso de perímetro",
+    "aglomeracion": "Aglomeración",
+    "merodeo": "Merodeo",
+    "objeto_abandonado": "Objeto abandonado",
+}
 SEVERIDADES = {"baja": "Baja", "media": "Media", "alta": "Alta", "critica": "Crítica"}
-ESTADOS = {"pendiente": "Pendiente", "confirmado": "Confirmado", "descartado": "Descartado"}
+# "validado": el operador confirmó pero aún no hay despacho con acuse.
+ESTADOS = {
+    "pendiente": "Pendiente",
+    "validado": "Validado",
+    "confirmado": "Despachado",
+    "descartado": "Descartado",
+}
 
-DESTINOS = ["Seguridad de campus", "C4 Municipal", "Protección Civil"]
+# Etiqueta en pantalla -> valor de `Dependencia` en el backend.
+DESTINOS = {
+    "Seguridad de campus": "Seguridad Campus",
+    "C4 Municipal": "C4 Municipal",
+    "Protección Civil": "Proteccion Civil",
+}
 MOTIVOS_DESCARTE = ["Falso positivo", "Personal autorizado", "Evento ya atendido", "Otro"]
+TODOS = "Todos"
 
 
 class Camara(TypedDict):
     id: str
     nombre: str
-    cuadrante: str
     lat: float
     lng: float
     activa: bool
@@ -43,10 +61,11 @@ class Alerta(TypedDict):
     estado: str
     despacho: str
     folio: str
-    # Campos derivados para mostrar (no forman parte del contrato).
+    # Campos derivados para mostrar.
     hora: str
     tipo_txt: str
     sev_txt: str
+    estado_txt: str
     confianza_txt: str
 
 
@@ -62,9 +81,9 @@ class EntradaBitacora(TypedDict):
     timestamp: str
     actor: str
     accion: str
-    evento_id: str
+    entidad: str
     detalle: str
-    folio: str
+    sello: str
 
 
 ALERTA_VACIA: Alerta = {
@@ -84,25 +103,38 @@ ALERTA_VACIA: Alerta = {
     "hora": "",
     "tipo_txt": "",
     "sev_txt": "",
+    "estado_txt": "",
     "confianza_txt": "",
 }
 
 
-def hora_local(timestamp: str) -> str:
-    """Devuelve HH:MM:SS de un timestamp ISO 8601 (o el texto tal cual si no lo es)."""
+def a_local(timestamp: str) -> datetime | None:
+    """Convierte un timestamp ISO 8601 a hora local; None si no es válido."""
     try:
-        return datetime.fromisoformat(timestamp).strftime("%H:%M:%S")
+        return datetime.fromisoformat(timestamp).astimezone()
     except ValueError:
-        return timestamp
+        return None
+
+
+def fecha_hora_local(timestamp: str) -> str:
+    momento = a_local(timestamp)
+    return momento.strftime("%Y-%m-%d %H:%M:%S") if momento else timestamp
+
+
+def con_derivados(alerta: Alerta) -> Alerta:
+    """Recalcula los campos de presentación a partir de los del contrato."""
+    momento = a_local(alerta["timestamp"])
+    alerta["hora"] = momento.strftime("%H:%M:%S") if momento else alerta["timestamp"]
+    alerta["tipo_txt"] = TIPOS.get(alerta["tipo"], alerta["tipo"].replace("_", " ").capitalize())
+    alerta["sev_txt"] = SEVERIDADES.get(alerta["severidad"], alerta["severidad"].capitalize())
+    alerta["estado_txt"] = ESTADOS.get(alerta["estado"], alerta["estado"].capitalize())
+    alerta["confianza_txt"] = f"{alerta['confianza']:.0%}"
+    return alerta
 
 
 def normalizar_alerta(evento: dict) -> Alerta:
-    """Convierte un evento crudo del contrato en una alerta lista para la interfaz."""
+    """Completa un evento ya traducido por `api_client` para usarlo en la interfaz."""
     alerta: Alerta = {**ALERTA_VACIA, **{k: v for k, v in evento.items() if k in ALERTA_VACIA and v is not None}}
     alerta["estado"] = alerta["estado"] or "pendiente"
     alerta["confianza"] = float(alerta["confianza"])
-    alerta["hora"] = hora_local(alerta["timestamp"])
-    alerta["tipo_txt"] = TIPOS.get(alerta["tipo"], alerta["tipo"].capitalize())
-    alerta["sev_txt"] = SEVERIDADES.get(alerta["severidad"], alerta["severidad"].capitalize())
-    alerta["confianza_txt"] = f"{alerta['confianza']:.0%}"
-    return alerta
+    return con_derivados(alerta)

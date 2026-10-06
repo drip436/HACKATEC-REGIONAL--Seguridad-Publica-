@@ -39,7 +39,7 @@ def _acciones() -> rx.Component:
         rx.grid(
             _campo(
                 "Despachar a",
-                rx.select(DESTINOS, value=State.destino, on_change=State.set_destino, width="100%"),
+                rx.select(list(DESTINOS), value=State.destino, on_change=State.set_destino, width="100%"),
             ),
             _campo(
                 "Motivo (solo para descartar)",
@@ -82,10 +82,32 @@ def _acciones() -> rx.Component:
     )
 
 
+def _despacho_pendiente(alerta) -> rx.Component:
+    """Evento ya validado cuyo despacho aún no tiene acuse (o falló la federación)."""
+    return rx.vstack(
+        rx.hstack(insignia_estado(alerta), rx.text(alerta["despacho"], size="2"), align="center", spacing="2", wrap="wrap"),
+        rx.text("El evento ya fue validado; falta federarlo a una dependencia.", size="2", color=TEXTO_2),
+        _campo(
+            "Despachar a",
+            rx.select(list(DESTINOS), value=State.destino, on_change=State.set_destino, width="100%"),
+        ),
+        rx.button(
+            "Despachar",
+            on_click=State.confirmar,
+            loading=State.procesando,
+            color_scheme="green",
+            size="3",
+            width="100%",
+        ),
+        spacing="3",
+        width="100%",
+    )
+
+
 def _resuelta(alerta) -> rx.Component:
     return rx.vstack(
         rx.hstack(insignia_estado(alerta), rx.text(alerta["despacho"], size="2"), align="center", spacing="2"),
-        rx.cond(alerta["folio"] != "", rx.text("Folio de interoperabilidad: ", rx.code(alerta["folio"]), size="2")),
+        rx.cond(alerta["folio"] != "", rx.text("Acuse de interoperabilidad: ", rx.code(alerta["folio"]), size="2")),
         rx.dialog.close(rx.button("Cerrar", variant="soft", color_scheme="gray", size="3", width="100%")),
         spacing="3",
         width="100%",
@@ -113,7 +135,12 @@ def modal_validacion() -> rx.Component:
                 ),
                 _captura(alerta),
                 datos_alerta(alerta),
-                rx.cond(alerta["estado"] == "pendiente", _acciones(), _resuelta(alerta)),
+                rx.match(
+                    alerta["estado"],
+                    ("pendiente", _acciones()),
+                    ("validado", _despacho_pendiente(alerta)),
+                    _resuelta(alerta),
+                ),
                 spacing="4",
                 width="100%",
             ),

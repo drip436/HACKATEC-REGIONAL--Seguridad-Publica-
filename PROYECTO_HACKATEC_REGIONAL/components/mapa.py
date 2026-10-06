@@ -2,7 +2,7 @@
 
 import reflex as rx
 
-from .. import mock
+from .. import campus
 from ..estilos import COLOR_SEVERIDAD, TEXTO_2, TEXTO_3, tarjeta, titulo
 from ..modelos import SEVERIDADES
 from ..state import State
@@ -31,9 +31,9 @@ class MapaLeaflet(rx.NoSSRComponent):
 
 def _mapa(**props) -> rx.Component:
     return MapaLeaflet.create(
-        centro=mock.CENTRO,
-        zoom=mock.ZOOM,
-        cuadrantes=mock.CUADRANTES,
+        centro=State.centro,
+        zoom=campus.ZOOM,
+        cuadrantes=State.cuadrantes,
         camaras=State.camaras,
         **props,
     )
