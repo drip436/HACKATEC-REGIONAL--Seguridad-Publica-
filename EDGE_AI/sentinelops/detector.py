@@ -11,10 +11,12 @@ from __future__ import annotations
 import logging
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
-from typing import Any, Final, NamedTuple
+from typing import TYPE_CHECKING, Any, Final, NamedTuple
 
 import numpy as np
-from ultralytics import YOLO
+
+if TYPE_CHECKING:
+    from ultralytics import YOLO
 
 LOGGER = logging.getLogger(__name__)
 
@@ -103,8 +105,21 @@ CROUCH_ANKLE_TORSO_RATIO: Final[float] = 1.5
 # Mismo criterio cuando los tobillos están ocultos y sólo hay rodillas
 # (de pie, hombros->rodillas mide ~1.5 torsos).
 CROUCH_KNEE_TORSO_RATIO: Final[float] = 1.0
-# Margen anti-parpadeo para "manos arriba", en fracción del torso.
-HANDS_UP_MARGIN_RATIO: Final[float] = 0.10
+# Los gestos (manos arriba, agachado) deciden alertas ROJAS: sus articulaciones
+# deben verse, no inventarse. Con yolov8n-pose a 320 px las muñecas de una
+# persona a media distancia rondan 0.4-0.6; un umbral más alto deja ciego al
+# sensor en la demo.
+GESTURE_MIN_CONFIDENCE: Final[float] = 0.35
+# "Manos arriba": ambas muñecas por encima de los hombros al menos esta fracción
+# del torso. Una rendición o una defensa llevan las manos a la altura de la
+# cara, no necesariamente por encima de la cabeza; en el video de demo las
+# muñecas quedan 0.1-0.35 torsos sobre los hombros.
+HANDS_UP_WRIST_RATIO: Final[float] = 0.10
+# Codos como mucho esta fracción del torso por debajo de los hombros: brazos
+# levantados o doblados hacia arriba, no colgando.
+HANDS_UP_ELBOW_RATIO: Final[float] = 0.25
+# Caja claramente horizontal (tumbado, gateando) cuando no hay esqueleto.
+LYING_ASPECT_RATIO: Final[float] = 0.60
 
 
 class Keypoint(NamedTuple):
@@ -167,6 +182,19 @@ class Pose:
             point for point in (self.get(index) for index in indices) if point is not None
         )
 
+    def get_sure(self, index: int) -> Keypoint | None:
+        """Keypoint con confianza de gesto (>= GESTURE_MIN_CONFIDENCE), o None."""
+        point = self.get(index)
+        if point is None or point.confidence < GESTURE_MIN_CONFIDENCE:
+            return None
+        return point
+
+    def sure(self, indices: Iterable[int]) -> tuple[Keypoint, ...]:
+        return tuple(
+            point for point in (self.get_sure(index) for index in indices) if point is not None
+        )
+
+
     def mean_y(self, indices: Iterable[int]) -> float | None:
         """Promedio de Y de las articulaciones visibles (None si no hay)."""
         points = self.visible(indices)
@@ -216,34 +244,43 @@ class Pose:
         shoulders = self.shoulders_y
         if torso is None or shoulders is None:
             return False
+        # Caderas y piernas con certeza: una persona cortada por el borde o
+        # tapada hasta la cintura no "está agachada", simplemente no se ve.
+        if len(self.sure((LEFT_HIP, RIGHT_HIP))) < 1:
+            return False
 
-        ankles = self.ankles_y
-        if ankles is not None:
-            return (ankles - shoulders) < CROUCH_ANKLE_TORSO_RATIO * torso
-        knees = self.knees_y
-        if knees is not None:
-            return (knees - shoulders) < CROUCH_KNEE_TORSO_RATIO * torso
+        ankles = self.sure((LEFT_ANKLE, RIGHT_ANKLE))
+        if ankles:
+            ankles_y = sum(point.y for point in ankles) / len(ankles)
+            return (ankles_y - shoulders) < CROUCH_ANKLE_TORSO_RATIO * torso
+        knees = self.sure((LEFT_KNEE, RIGHT_KNEE))
+        if knees:
+            knees_y = sum(point.y for point in knees) / len(knees)
+            return (knees_y - shoulders) < CROUCH_KNEE_TORSO_RATIO * torso
         return False
 
     @property
     def is_hands_up(self) -> bool:
-        """True si las muñecas superan la nariz, o ambas superan los hombros."""
+        """True si los dos brazos están levantados: ambas muñecas claramente por
+        encima de los hombros (a la altura de la cabeza o más) y los codos que
+        se vean a la altura de los hombros o más arriba.
+
+        Un saludo, señalar o hablar por teléfono usan una sola mano y no
+        cumplen. No depende de ver la cabeza: funciona de espaldas o con la
+        cabeza fuera de cuadro. Las muñecas deben verse con certeza.
+        """
         shoulders = self.shoulders_y
-        if shoulders is None:
+        torso = self.torso_height
+        if shoulders is None or torso is None:
             return False
 
-        wrists = self.visible((LEFT_WRIST, RIGHT_WRIST))
-        if not wrists:
+        wrists = self.sure((LEFT_WRIST, RIGHT_WRIST))
+        if len(wrists) < 2:
             return False
-
-        margin = HANDS_UP_MARGIN_RATIO * (self.torso_height or 0.0)
-        nose = self.get(NOSE)
-        if nose is not None and any(wrist.y < nose.y - margin for wrist in wrists):
-            return True
-        # Sin nariz visible (o muñecas entre nariz y hombros) se exige que las
-        # dos manos estén arriba: una sola mano alzada es un gesto cualquiera.
-        above_shoulders = [wrist for wrist in wrists if wrist.y < shoulders - margin]
-        return len(above_shoulders) >= 2
+        if not all(wrist.y < shoulders - HANDS_UP_WRIST_RATIO * torso for wrist in wrists):
+            return False
+        elbow_limit = shoulders + HANDS_UP_ELBOW_RATIO * torso
+        return all(elbow.y <= elbow_limit for elbow in self.sure((LEFT_ELBOW, RIGHT_ELBOW)))
 
 
 @dataclass(frozen=True, slots=True)
@@ -258,7 +295,7 @@ class Detection:
 
     bbox: tuple[int, int, int, int]
     confidence: float
-    class_id: int
+    class_id: int = PERSON_CLASS_ID
     track_id: int | None = None
     pose: Pose | None = None
 
@@ -316,9 +353,12 @@ class Detection:
         """Agachado por geometría del bbox o por proporciones del esqueleto."""
         if not self.is_person:
             return False
-        if 0 < self.height < self.width:
-            return True  # caja más ancha que alta: agachado, tumbado o gateando
-        return self.pose is not None and self.pose.is_crouching
+        if self.pose is not None:
+            return self.pose.is_crouching
+        # Sin esqueleto solo cuenta una caja claramente horizontal (tumbado,
+        # gateando); "un poco más ancha que alta" también lo es alguien sentado
+        # o medio tapado.
+        return 0 < self.height < LYING_ASPECT_RATIO * self.width
 
     @property
     def is_hands_up(self) -> bool:
@@ -394,6 +434,9 @@ class ThreatDetector:
         self._keypoint_min_confidence = keypoint_min_confidence
         self._imgsz = imgsz
         self._track = track
+
+        # Import diferido: la geometría y las reglas se prueban sin torch.
+        from ultralytics import YOLO
 
         LOGGER.info("Cargando modelo de pose %s", pose_model_path)
         self._pose_model = YOLO(pose_model_path)
