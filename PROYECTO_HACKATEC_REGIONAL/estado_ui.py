@@ -34,8 +34,6 @@ class Tile(TypedDict):
     etiqueta: str
     nombre: str
     snapshot_url: str
-    # Video de demostración ya anotado por el Edge AI; "" si la cámara no tiene.
-    video_url: str
     hora: str
     activa: bool
     en_vivo: bool
@@ -49,7 +47,6 @@ def _tile_vacio(posicion: int) -> Tile:
         "etiqueta": f"CCTV-{posicion:02d}",
         "nombre": "Sin cámara",
         "snapshot_url": "",
-        "video_url": "",
         "hora": "",
         "activa": False,
         "en_vivo": False,
@@ -64,7 +61,7 @@ def _duracion(segundos: float) -> str:
 
 
 class EstadoUI(State):
-    # Cámara proyectada en el reproductor principal; "" = la cámara en vivo (o el primer video).
+    # Cámara proyectada en el reproductor principal; "" = la cámara en vivo.
     camara_sel: str = ""
     camaras_demo: list[CamaraDemo] = []
 
@@ -88,9 +85,9 @@ class EstadoUI(State):
 
     @rx.var
     def mosaico(self) -> list[Tile]:
-        """Diez celdas: la cámara vinculada primero, luego las que tienen video de
-        demostración y después el inventario (activas antes). Sin video, la miniatura
-        es la captura de evidencia más reciente de la cámara."""
+        """Diez celdas de cámaras reales: la vinculada primero, luego el inventario (activas
+        antes). La miniatura es la captura de evidencia más reciente de cada cámara. Los
+        videos de demostración van aparte (`camaras_demo`)."""
         ultima: dict[str, dict] = {}
         en_alerta: set[str] = set()
         for alerta in self.alertas:  # de la más reciente a la más antigua
@@ -98,14 +95,11 @@ class EstadoUI(State):
                 ultima.setdefault(alerta["camara_id"], alerta)
             if alerta["estado"] == "pendiente" and alerta["severidad"] in SEVERIDADES_VIOLENCIA:
                 en_alerta.add(alerta["camara_id"])
-        videos = {c["id"]: c["video_url"] for c in self.camaras_demo}
 
-        camaras = sorted(
-            self._camaras_panel(),
-            key=lambda c: (not self._es_vinculada(c), c["id"] not in videos, not c["activa"]),
-        )
+        camaras = sorted(self.camaras_mapa, key=lambda c: (not self._es_vinculada(c), not c["activa"]))
         tiles: list[Tile] = []
         for posicion, camara in enumerate(camaras[:TILES_MOSAICO], start=1):
+            en_vivo = self._es_vinculada(camara)
             captura = ultima.get(camara["id"])
             tiles.append(
                 {
@@ -113,27 +107,23 @@ class EstadoUI(State):
                     "etiqueta": f"CCTV-{posicion:02d}",
                     "nombre": camara["nombre"],
                     "snapshot_url": captura["snapshot_url"] if captura else "",
-                    "video_url": videos.get(camara["id"], ""),
                     "hora": captura["hora"] if captura else "",
                     "activa": camara["activa"],
-                    "en_vivo": self._es_vinculada(camara),
+                    "en_vivo": en_vivo,
                     "en_alerta": camara["id"] in en_alerta,
-                    "elegida": False,
+                    "elegida": camara["id"] == self.camara_sel or (en_vivo and not self.camara_sel),
                 }
             )
-        # Proyectada: la que eligió el operador; si no, la cámara en vivo; si tampoco hay,
-        # el primer video de demostración (el reproductor no se queda vacío en la demo).
-        elegida = next((t for t in tiles if t["id"] == self.camara_sel), None) if self.camara_sel else None
-        elegida = elegida or next((t for t in tiles if t["en_vivo"]), None) or next((t for t in tiles if t["video_url"]), None)
-        if elegida:
-            elegida["elegida"] = True
         tiles += [_tile_vacio(posicion) for posicion in range(len(tiles) + 1, TILES_MOSAICO + 1)]
         return tiles
 
     @rx.var
     def proyeccion(self) -> Tile:
-        """Celda proyectada en el reproductor (vacía si no hay ninguna cámara que mostrar)."""
-        return next((tile for tile in self.mosaico if tile["elegida"]), _tile_vacio(0))
+        """Celda proyectada en el reproductor (vacía si se muestra la cámara en vivo)."""
+        for tile in self.mosaico:
+            if tile["id"] and tile["id"] == self.camara_sel:
+                return tile
+        return _tile_vacio(0)
 
     @rx.var
     def proyecta_vivo(self) -> bool:
@@ -181,9 +171,17 @@ class EstadoUI(State):
     @rx.event
     def proyectar(self, camara_id: str):
         """Proyecta una cámara del mosaico y centra el mapa en ella."""
-        for camara in self._camaras_panel():
+        for camara in self.camaras_mapa:
             if camara_id and camara["id"] == camara_id:
                 self.camara_sel = camara_id
+                self._enfocar(camara["lat"], camara["lng"])
+                return
+
+    @rx.event
+    def ubicar_demo(self, camara_id: str):
+        """Centra el mapa en una cámara de demostración."""
+        for camara in self.camaras_demo:
+            if camara["id"] == camara_id:
                 self._enfocar(camara["lat"], camara["lng"])
                 return
 

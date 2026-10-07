@@ -106,7 +106,7 @@ misma máquina que el sensor. Para verlo desde otra, define
 Para la demo, el panel puede mostrar videos propios como si fueran cámaras con la
 detección funcionando. Cada video se pasa **una vez** por el mismo pipeline del sensor
 (modelo, reglas de conducta y HUD) y se guarda ya anotado; el panel lo reproduce en
-bucle en el mosaico de cámaras y en el reproductor principal.
+bucle en la sección «Videos de demostración», debajo del mapa y de las cámaras reales.
 
 ```bash
 # Desde EDGE_AI/, con el entorno que tiene ultralytics/torch:
@@ -117,8 +117,8 @@ python tools/preprocesar_video.py videos/plaza.mp4 \
 - Deja el resultado en `static/videos/<id>.mp4` y registra la cámara en
   `static/videos/camaras.json` (id, nombre, coordenadas y archivo). Repetir el comando
   con el mismo nombre reemplaza el video; para quitar una cámara, borra su entrada.
-- `--id` fija el código de la cámara (por defecto `CAM-DEMO-<nombre>`); con el código de
-  una cámara del inventario, esa cámara muestra el video. `--cada 2` o `3` procesa más rápido.
+- `--id` fija el código de la cámara (por defecto `CAM-DEMO-<nombre>`). `--cada 2` o `3`
+  procesa más rápido.
 - Al terminar imprime qué niveles y conductas marcó el modelo, para saber si el video
   sirve antes de la demo.
 - Con `ffmpeg` instalado sale un `.mp4` (H.264); sin él, un `.webm` con OpenCV.
