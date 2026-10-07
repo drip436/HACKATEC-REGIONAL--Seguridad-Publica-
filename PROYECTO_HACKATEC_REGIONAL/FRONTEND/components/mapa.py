@@ -82,7 +82,12 @@ def _leyenda(calor: bool = False) -> rx.Component:
 def _aviso_simulados() -> rx.Component:
     return rx.cond(
         State.hay_datos_simulados,
-        rx.badge("Datos simulados: no son cifras oficiales de incidencia", color_scheme="amber", variant="soft"),
+        rx.badge(
+            "Datos simulados: no son cifras oficiales de incidencia",
+            color_scheme="amber",
+            variant="soft",
+            style={"whiteSpace": "normal", "maxWidth": "100%", "height": "auto"},
+        ),
     )
 
 
@@ -115,6 +120,8 @@ def mapa_de_calor() -> rx.Component:
                     rx.text(State.total_historico, " eventos en el periodo", size="2", color=TEXTO_3),
                     spacing="3",
                     align="center",
+                    wrap="wrap",
+                    max_width="100%",
                 ),
             ),
             _mapa(calor=State.puntos_calor, altura="420px"),

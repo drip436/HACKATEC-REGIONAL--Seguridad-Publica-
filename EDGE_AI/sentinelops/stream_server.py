@@ -86,7 +86,7 @@ class FramePublisher:
 
 
 class StreamServer:
-    def __init__(self, publisher: FramePublisher, port: int, token: str | None, host: str = "0.0.0.0") -> None:
+    def __init__(self, publisher: FramePublisher, port: int, token: str | None, host: str = "127.0.0.1") -> None:
         self._publisher = publisher
         self._token = token
         self._httpd = ThreadingHTTPServer((host, port), self._handler())

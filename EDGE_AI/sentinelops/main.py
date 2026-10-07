@@ -375,7 +375,7 @@ def run(config: Config, options: RuntimeOptions) -> int:
     servidor: StreamServer | None = None
     if config.stream_enabled:
         try:
-            servidor = StreamServer(publisher, config.stream_port, config.stream_token)
+            servidor = StreamServer(publisher, config.stream_port, config.stream_token, host=config.stream_host)
             servidor.start()
         except OSError as error:
             LOGGER.error("No se pudo abrir el puerto %d del video: %s", config.stream_port, error)

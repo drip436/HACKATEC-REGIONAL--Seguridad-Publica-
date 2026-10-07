@@ -93,6 +93,10 @@ EVENT_TYPE: str = "INTRUSION_PERIMETRO"
 EVENT_SEVERITY: str = "ALTA"
 
 # --- Transmisión del video anotado (la muestra el panel) --------------------
+# Solo la propia máquina por defecto: el panel muestra este video desde el
+# navegador que corre junto al sensor. Para verlo desde otra máquina, define
+# SENTINELOPS_STREAM_HOST=0.0.0.0 y un SENTINEL_STREAM_TOKEN.
+STREAM_HOST: str = os.getenv("SENTINELOPS_STREAM_HOST", "127.0.0.1")
 STREAM_PORT: int = int(os.getenv("SENTINELOPS_STREAM_PORT", "8090"))
 STREAM_TOKEN: str | None = os.getenv("SENTINEL_STREAM_TOKEN") or None
 
@@ -142,6 +146,7 @@ class Config:
     event_severity: str = EVENT_SEVERITY
 
     stream_enabled: bool = True
+    stream_host: str = STREAM_HOST
     stream_port: int = STREAM_PORT
     stream_token: str | None = STREAM_TOKEN
 
