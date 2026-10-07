@@ -13,7 +13,7 @@ vigilancia:
 | Altercado | dos personas que **se acercaron de golpe** y siguen pegadas ≥ 6 s (3 o más juntas = grupo, no cuenta) | rojo | `aglomeracion` (alta) |
 | Manos arriba | **ambas** manos a la altura de la cara o más (muñecas sobre los hombros, codos levantados) durante ≥ 0.5 s | rojo | `traspaso_perimetro` (crítica) |
 | Arma | cuchillo (clase COCO 43) con confianza ≥ 0.30 | rojo | `traspaso_perimetro` (crítica) |
-| Colisión vehicular | dos vehículos que **se acercaron**, se tocan, uno **frena en seco** (pierde ≥ 70 % de su velocidad en 0.4 s) y quedan quietos en contacto ≥ 1.5 s | rojo | `colision` (alta) |
+| Colisión vehicular | dos vehículos (carro, moto, camión o autobús) que se tocan tras venir en movimiento, y uno **frena en seco** (queda a ≤ 35 % de su velocidad previa, perdiendo ≥ 1.5 anchos/s²) **o el otro, que estaba quieto, sale empujado**; después quedan quietos en contacto ≥ 1 s | rojo | `colision` (alta) |
 | Atropello | vehículo **en movimiento** que cubre a una persona que estaba fuera de él y la persona **cae** (altura ≤ 60 %) o queda inmóvil mientras el vehículo frena en seco | rojo | `colision` (crítica) |
 
 Los gestos solo usan articulaciones vistas con certeza y exigen que la misma
@@ -26,7 +26,14 @@ gesto que la demo necesita reconocer. Los tiempos se ajustan con
 cuadro (no solo en la zona) y las velocidades se miden en anchos de caja por
 segundo, así no dependen de la distancia a la cámara. Cruzarse delante de la
 cámara (oclusión), estacionarse despacio o dos vehículos ya estacionados no
-cuentan.
+cuentan. Un roce a paso de peatón contra un carro estacionado que no se mueve
+tampoco: para la cámara es igual que estacionarse.
+
+Para calibrar con un video real: `python tools/diag_colisiones.py mi_choque.mp4`
+imprime, cada medio segundo, qué parejas están en contacto y qué condición falta
+(acercamiento, impacto, quietud) con sus velocidades. Solo sirve con cámara fija
+(CCTV, teléfono apoyado): en un video de dashcam la cámara se mueve y todo
+parece moverse.
 
 Publica el **video anotado en vivo** (MJPEG) y el estado del análisis, que el
 panel muestra en "Cámara en vivo"; guarda un fotograma de evidencia por alerta y

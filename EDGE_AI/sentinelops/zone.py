@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from collections import deque
 from collections.abc import Iterable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from statistics import median
 from enum import Enum, IntEnum
 from itertools import combinations
@@ -76,14 +76,19 @@ GROUP_SUPPRESS_SIZE: int = 3
 # frenada en seco (décimas de segundo, no los 2-3 s de estacionarse) y los
 # implicados quedan quietos y en contacto. Cruzarse delante de la cámara no
 # frena; estacionarse frena despacio; dos estacionados nunca se acercaron.
-COLLISION_MIN_SPEED: float = 0.8  # alguno venía en movimiento (anchos/s)
+COLLISION_MIN_SPEED: float = 0.3  # alguno venía en movimiento (anchos/s; en CCTV lejano ~0.3-1)
 COLLISION_APPROACH_SECONDS: float = 1.5  # su distancia cayó a la mitad en este tiempo
 COLLISION_OVERLAP_RATIO: float = 0.15  # contacto: solape sobre la caja menor
 COLLISION_WINDOW_SECONDS: float = 0.4  # ventana para medir la velocidad
-COLLISION_MIN_DECEL: float = 2.5  # anchos/s perdidos por segundo: frenada en seco
-COLLISION_STOP_RATIO: float = 0.3  # ...y queda a menos de esta fracción de la velocidad previa
-COLLISION_IMPACT_SECONDS: float = 1.0  # la frenada debe verse al inicio del contacto
-COLLISION_HOLD_SECONDS: float = 1.5  # quietos y en contacto este tiempo -> ROJO
+COLLISION_PRE_SECONDS: float = 0.8  # velocidad "previa": este tiempo antes del contacto
+COLLISION_MIN_DECEL: float = 1.5  # anchos/s perdidos por segundo: frenada en seco (estacionarse ~0.5)
+COLLISION_STOP_RATIO: float = 0.35  # ...y queda a menos de esta fracción de la velocidad previa
+COLLISION_IMPACT_SECONDS: float = 1.0  # la frenada o el empujón deben verse al inicio del contacto
+# Empujón: un vehículo que estaba quieto se desplaza esta fracción de su ancho
+# justo al empezar el contacto. Solo un golpe mueve a un carro estacionado.
+COLLISION_PUSH_WIDTHS: float = 0.08
+COLLISION_STILL_SPEED: float = 0.05  # quieto antes del contacto (anchos/s)
+COLLISION_HOLD_SECONDS: float = 1.0  # quietos y en contacto este tiempo -> ROJO
 COLLISION_STILL_FACTOR: float = 0.5  # quieto: no se mueve más de medio ancho
 # Atropello: vehículo en movimiento que solapa a una persona que antes estaba
 # fuera de él (descarta al conductor visible), y la persona cae o queda inmóvil
@@ -462,10 +467,25 @@ class _TrackHistory:
     def braked(self, key: str, window: float, min_speed: float, min_decel: float, stop_ratio: float, now: float) -> bool:
         """True si en la última ventana la velocidad cayó en seco respecto a la anterior."""
         previous = self.speed(key, 2 * window, window, now)
+        return self.stopped_from(key, previous, window, window, min_speed, min_decel, stop_ratio, now)
+
+    def stopped_from(
+        self,
+        key: str,
+        previous: float | None,
+        elapsed: float,
+        window: float,
+        min_speed: float,
+        min_decel: float,
+        stop_ratio: float,
+        now: float,
+    ) -> bool:
+        """True si la velocidad de la última ventana cayó en seco respecto a `previous`,
+        medida `elapsed` segundos antes (entre centros de ventana)."""
         current = self.speed(key, window, 0.0, now)
         if previous is None or current is None or previous < min_speed:
             return False
-        return current <= stop_ratio * previous and (previous - current) / window >= min_decel
+        return current <= stop_ratio * previous and (previous - current) / max(elapsed, window) >= min_decel
 
     def box_ago(self, key: str, ago: float, now: float) -> tuple[float, float, float, float] | None:
         """Caja aproximada de la identidad hace `ago` segundos (None sin datos)."""
@@ -501,7 +521,10 @@ class _Contact:
 
     started_at: float
     approached: bool  # venían de lejos / el vehículo iba en movimiento y la persona fuera
-    impact: bool = False  # ya se vio la frenada en seco (o la caída)
+    impact: bool = False  # ya se vio la frenada en seco, el empujón o la caída
+    # Por identidad: velocidad previa al contacto y posición de los pies al empezar.
+    pre_speed: dict[str, float] = field(default_factory=dict)
+    start_foot: dict[str, tuple[float, float, float]] = field(default_factory=dict)  # (x, y, ancho)
 
 
 def _covered_fraction(box: tuple[float, float, float, float], other: tuple[float, float, float, float]) -> float:
@@ -703,6 +726,15 @@ class ThreatAssessor:
         for latch in (self._weapon_latch, self._crouch_latch, self._hands_up_latch):
             latch.clear()
 
+    def _pushed(self, key: str, contact: _Contact, detection: Detection) -> bool:
+        """El vehículo estaba quieto y se desplazó desde que empezó el contacto."""
+        inicio = contact.start_foot.get(key)
+        if inicio is None or contact.pre_speed.get(key, 1.0) > COLLISION_STILL_SPEED:
+            return False
+        x0, y0, width = inicio
+        x, y = detection.foot_point
+        return float(np.hypot(x - x0, y - y0)) >= COLLISION_PUSH_WIDTHS * max(width, 1.0)
+
     def _braked(self, key: str, now: float) -> bool:
         return self._history.braked(
             key, COLLISION_WINDOW_SECONDS, COLLISION_MIN_SPEED, COLLISION_MIN_DECEL, COLLISION_STOP_RATIO, now
@@ -840,12 +872,32 @@ class ThreatAssessor:
             active_crashes.add(crash_key)
             contact = self._crashes.get(crash_key)
             if contact is None:
+                # Venían de lejos (la distancia se redujo a la mitad) o, si alguno
+                # acaba de entrar en cuadro y no hay historial, al menos uno llegaba
+                # en movimiento. Dos estacionados desde el inicio no cumplen nada.
                 before = self._history.distance_ago(key_a, key_b, COLLISION_APPROACH_SECONDS, now)
                 current = first.centroid_distance(second)
-                contact = _Contact(now, approached=before is not None and current <= 0.5 * before)
+                converged = before is not None and current <= 0.5 * before
+                pre = {k: self._history.speed(k, COLLISION_PRE_SECONDS, 0.0, now) for k in (key_a, key_b)}
+                moving = any((v or 0.0) >= COLLISION_MIN_SPEED for v in pre.values())
+                contact = _Contact(
+                    now,
+                    approached=converged or moving,
+                    pre_speed={k: v for k, v in pre.items() if v is not None},
+                    start_foot={k: (*d.foot_point, float(d.width)) for k, d in ((key_a, first), (key_b, second))},
+                )
                 self._crashes[crash_key] = contact
             if not contact.impact and now - contact.started_at <= COLLISION_IMPACT_SECONDS:
-                contact.impact = any(self._braked(key, now) for key in (key_a, key_b))
+                # Tiempo entre el centro de la ventana previa y el de la actual.
+                elapsed = (now - contact.started_at) + (COLLISION_PRE_SECONDS + COLLISION_WINDOW_SECONDS) / 2
+                contact.impact = any(
+                    self._history.stopped_from(
+                        key, contact.pre_speed.get(key), elapsed, COLLISION_WINDOW_SECONDS, COLLISION_MIN_SPEED,
+                        COLLISION_MIN_DECEL, COLLISION_STOP_RATIO, now,
+                    )
+                    or self._pushed(key, contact, detection)
+                    for key, detection in ((key_a, first), (key_b, second))
+                )
             if (
                 contact.approached
                 and contact.impact

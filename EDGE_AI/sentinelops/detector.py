@@ -24,9 +24,13 @@ LOGGER = logging.getLogger(__name__)
 PERSON_CLASS_ID: Final[int] = 0
 CAR_CLASS_ID: Final[int] = 2
 MOTORCYCLE_CLASS_ID: Final[int] = 3
+BUS_CLASS_ID: Final[int] = 5
+TRUCK_CLASS_ID: Final[int] = 7
 WEAPON_CLASS_ID: Final[int] = 43  # COCO: "knife"
 
-VEHICLE_CLASS_IDS: Final[tuple[int, ...]] = (CAR_CLASS_ID, MOTORCYCLE_CLASS_ID)
+# Camiones y autobuses también chocan; además yolov8n etiqueta como "truck"
+# muchas camionetas y carritos a escala.
+VEHICLE_CLASS_IDS: Final[tuple[int, ...]] = (CAR_CLASS_ID, MOTORCYCLE_CLASS_ID, BUS_CLASS_ID, TRUCK_CLASS_ID)
 POSE_CLASS_IDS: Final[tuple[int, ...]] = (PERSON_CLASS_ID,)
 OBJECT_CLASS_IDS: Final[tuple[int, ...]] = (*VEHICLE_CLASS_IDS, WEAPON_CLASS_ID)
 
@@ -37,6 +41,8 @@ CLASS_NAMES: Final[dict[int, str]] = {
     PERSON_CLASS_ID: "persona",
     CAR_CLASS_ID: "carro",
     MOTORCYCLE_CLASS_ID: "moto",
+    BUS_CLASS_ID: "autobus",
+    TRUCK_CLASS_ID: "camion",
     WEAPON_CLASS_ID: "arma",
 }
 
@@ -47,6 +53,8 @@ BACKEND_CLASS_LABELS: Final[dict[int, str]] = {
     PERSON_CLASS_ID: "persona",
     CAR_CLASS_ID: "vehiculo",
     MOTORCYCLE_CLASS_ID: "vehiculo",
+    BUS_CLASS_ID: "vehiculo",
+    TRUCK_CLASS_ID: "vehiculo",
     WEAPON_CLASS_ID: "objeto",
 }
 

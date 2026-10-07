@@ -94,6 +94,26 @@ def test_el_choque_avisa_tras_el_tiempo_de_quietud() -> None:
     assert ThreatRule.VEHICLE_COLLISION in reglas
 
 
+def test_alcance_lento_que_empuja_al_estacionado_es_choque() -> None:
+    a = ThreatAssessor(ZONA)
+
+    def escena(t: float):
+        # Llega despacio (0.5 anchos/s), toca al estacionado a los ~7.3 s y lo empuja 15 px.
+        x = frenada(t, 100, 60, 7.3, 0.4)
+        empujado = 600 if t < 7.3 else 600 + min(15.0, 50 * (t - 7.3))
+        return [carro(x, 1), carro(empujado, 2)]
+
+    reglas, _ = correr(a, escena, 10.0)
+    assert ThreatRule.VEHICLE_COLLISION in reglas
+
+
+def test_frenar_despacio_junto_a_otro_sin_moverlo_no_es_choque() -> None:
+    a = ThreatAssessor(ZONA)
+    # Mismo acercamiento lento, pero frena en 1.5 s y el otro no se mueve: estacionarse.
+    reglas, _ = correr(a, lambda t: [carro(frenada(t, 100, 60, 6.5, 1.5), 1), carro(600, 2)], 10.0)
+    assert ThreatRule.VEHICLE_COLLISION not in reglas
+
+
 # ---------------------------------------------------------------- atropello
 
 
