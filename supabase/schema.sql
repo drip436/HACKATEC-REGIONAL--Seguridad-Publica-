@@ -54,7 +54,7 @@ CREATE TABLE IF NOT EXISTS eventos_detectados (
     recibido_en          TIMESTAMPTZ  NOT NULL,
     validado_en          TIMESTAMPTZ,
     CONSTRAINT ck_eventos_detectados_tipo_evento
-        CHECK (tipo_evento IN ('traspaso_perimetro', 'aglomeracion', 'objeto_abandonado', 'merodeo')),
+        CHECK (tipo_evento IN ('traspaso_perimetro', 'aglomeracion', 'objeto_abandonado', 'merodeo', 'colision')),
     CONSTRAINT ck_eventos_detectados_nivel_prioridad
         CHECK (nivel_prioridad IN ('baja', 'media', 'alta', 'critica')),
     CONSTRAINT ck_eventos_detectados_estado_validacion
@@ -166,3 +166,11 @@ ALTER TABLE atenciones_campo         ENABLE ROW LEVEL SECURITY;
 ALTER TABLE bitacora_auditoria       ENABLE ROW LEVEL SECURITY;
 
 COMMIT;
+
+-- -----------------------------------------------------------------------------
+-- Migración: bases creadas antes del tipo de evento 'colision'.
+-- En SQLite local basta con borrar reflex.db; en Supabase ejecutar:
+-- -----------------------------------------------------------------------------
+-- ALTER TABLE eventos_detectados DROP CONSTRAINT IF EXISTS ck_eventos_detectados_tipo_evento;
+-- ALTER TABLE eventos_detectados ADD CONSTRAINT ck_eventos_detectados_tipo_evento
+--     CHECK (tipo_evento IN ('traspaso_perimetro', 'aglomeracion', 'objeto_abandonado', 'merodeo', 'colision'));

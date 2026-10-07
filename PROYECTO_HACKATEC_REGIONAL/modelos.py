@@ -13,6 +13,7 @@ TIPOS = {
     "aglomeracion": "Aglomeración",
     "merodeo": "Merodeo",
     "objeto_abandonado": "Objeto abandonado",
+    "colision": "Colisión vehicular",
 }
 SEVERIDADES = {"baja": "Baja", "media": "Media", "alta": "Alta", "critica": "Crítica"}
 # "validado": el operador confirmó pero aún no hay despacho con acuse.

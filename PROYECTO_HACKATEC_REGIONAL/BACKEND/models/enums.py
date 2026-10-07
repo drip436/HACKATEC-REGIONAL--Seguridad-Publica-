@@ -22,6 +22,8 @@ class TipoEvento(StrEnum):
     AGLOMERACION = "aglomeracion"
     OBJETO_ABANDONADO = "objeto_abandonado"
     MERODEO = "merodeo"
+    # Choque entre vehículos o atropello (lo distingue la severidad: alta / crítica).
+    COLISION = "colision"
 
 
 # Vocabulario que emite el Módulo A (Edge AI) -> vocabulario canónico del backend.
@@ -31,6 +33,8 @@ ALIAS_TIPO_EVENTO: dict[str, TipoEvento] = {
     "AGLOMERACION": TipoEvento.AGLOMERACION,
     "OBJETO_ABANDONADO": TipoEvento.OBJETO_ABANDONADO,
     "MERODEO": TipoEvento.MERODEO,
+    "COLISION": TipoEvento.COLISION,
+    "ATROPELLO": TipoEvento.COLISION,
 }
 
 

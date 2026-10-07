@@ -90,6 +90,15 @@ def test_alerta_del_sensor_se_registra(client: Any) -> None:
     assert evento["metadata_json"]["confianza"] == 0.88
 
 
+def test_colision_del_sensor_se_registra(client: Any) -> None:
+    n, sesion = _notificador(client, CLAVE_SENSOR)
+    n._send(_evento(event_type="COLISION", severity="ALTA", detected_class="vehiculo"))
+    n._send(_evento(event_type="ATROPELLO", severity="CRITICA", detected_class="vehiculo"))
+    assert [r.status_code for r in sesion.respuestas] == [201, 201]
+    assert [r.json()["tipo_evento"] for r in sesion.respuestas] == ["colision", "colision"]
+    assert [r.json()["nivel_prioridad"] for r in sesion.respuestas] == ["alta", "critica"]
+
+
 def test_reintento_del_sensor_no_duplica(client: Any) -> None:
     n, sesion = _notificador(client, CLAVE_SENSOR)
     evento = _evento()

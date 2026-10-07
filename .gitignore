@@ -16,3 +16,6 @@ reflex.log
 
 # Preferencias personales del editor
 .vscode/
+
+# Video local de pruebas de colisión (no se versiona)
+EDGE_AI/choque.mp4

@@ -13,14 +13,20 @@ vigilancia:
 | Altercado | dos personas que **se acercaron de golpe** y siguen pegadas ≥ 6 s (3 o más juntas = grupo, no cuenta) | rojo | `aglomeracion` (alta) |
 | Manos arriba | **ambas** manos a la altura de la cara o más (muñecas sobre los hombros, codos levantados) durante ≥ 0.5 s | rojo | `traspaso_perimetro` (crítica) |
 | Arma | cuchillo (clase COCO 43) con confianza ≥ 0.30 | rojo | `traspaso_perimetro` (crítica) |
+| Colisión vehicular | dos vehículos que **se acercaron**, se tocan, uno **frena en seco** (pierde ≥ 70 % de su velocidad en 0.4 s) y quedan quietos en contacto ≥ 1.5 s | rojo | `colision` (alta) |
+| Atropello | vehículo **en movimiento** que cubre a una persona que estaba fuera de él y la persona **cae** (altura ≤ 60 %) o queda inmóvil mientras el vehículo frena en seco | rojo | `colision` (crítica) |
 
 Los gestos solo usan articulaciones vistas con certeza y exigen que la misma
 persona (identidad del tracker) los sostenga: un saludo o señalar (una mano),
 un parpadeo de detección o agacharse a recoger algo no llegan al umbral.
 Levantar los dos brazos a propósito durante medio segundo sí cuenta: es el
 gesto que la demo necesita reconocer. Los tiempos se ajustan con
-`--loiter-person`, `--loiter-vehicle`, `--proximity`, `--hands-up-hold` y
-`--crouch-hold`.
+`--loiter-person`, `--loiter-vehicle`, `--proximity`, `--hands-up-hold`,
+`--crouch-hold` y `--collision-hold`. Las colisiones se evalúan en todo el
+cuadro (no solo en la zona) y las velocidades se miden en anchos de caja por
+segundo, así no dependen de la distancia a la cámara. Cruzarse delante de la
+cámara (oclusión), estacionarse despacio o dos vehículos ya estacionados no
+cuentan.
 
 Publica el **video anotado en vivo** (MJPEG) y el estado del análisis, que el
 panel muestra en "Cámara en vivo"; guarda un fotograma de evidencia por alerta y
@@ -180,6 +186,7 @@ python -m sentinelops --source http://192.168.1.50:8080/video --no-preview --zon
 | `--pose-model`, `--object-model`, `--no-objects`, `--conf`, `--weapon-conf`, `--vehicle-conf` | modelos y umbrales |
 | `--loiter-person S`, `--loiter-vehicle S`, `--proximity S` | tiempos de merodeo y altercado |
 | `--hands-up-hold S`, `--crouch-hold S` | segundos que debe sostenerse el gesto |
+| `--collision-hold S` | segundos quietos y en contacto tras el impacto |
 | `--inference-every N` | inferencia 1 de cada N frames |
 | `--cooldown S` | espera mínima entre alertas del mismo incidente (una escalada avisa igual) |
 | `--no-calibrate`, `--no-preview`, `--zona-completa` | zona por defecto / sin ventana / todo el cuadro |
