@@ -1,0 +1,1514 @@
+[
+ {
+  "codigo": "TAB-01",
+  "base": "Comalcalco",
+  "tipo_base": "centro",
+  "estado": "Tabasco",
+  "lat": 18.26139,
+  "lng": -93.223397
+ },
+ {
+  "codigo": "TAB-02",
+  "base": "Cunduacán",
+  "tipo_base": "centro",
+  "estado": "Tabasco",
+  "lat": 18.0659,
+  "lng": -93.173586
+ },
+ {
+  "codigo": "TAB-03",
+  "base": "Cárdenas",
+  "tipo_base": "centro",
+  "estado": "Tabasco",
+  "lat": 17.988749,
+  "lng": -93.377203
+ },
+ {
+  "codigo": "TAB-04",
+  "base": "Emiliano Zapata",
+  "tipo_base": "centro",
+  "estado": "Tabasco",
+  "lat": 17.739654,
+  "lng": -91.764883
+ },
+ {
+  "codigo": "TAB-05",
+  "base": "Frontera",
+  "tipo_base": "centro",
+  "estado": "Tabasco",
+  "lat": 18.532077,
+  "lng": -92.646401
+ },
+ {
+  "codigo": "TAB-06",
+  "base": "Huimanguillo",
+  "tipo_base": "centro",
+  "estado": "Tabasco",
+  "lat": 17.833134,
+  "lng": -93.391762
+ },
+ {
+  "codigo": "TAB-07",
+  "base": "Jalapa",
+  "tipo_base": "centro",
+  "estado": "Tabasco",
+  "lat": 17.721534,
+  "lng": -92.812043
+ },
+ {
+  "codigo": "TAB-08",
+  "base": "Jalpa de Méndez",
+  "tipo_base": "centro",
+  "estado": "Tabasco",
+  "lat": 18.176728,
+  "lng": -93.062978
+ },
+ {
+  "codigo": "TAB-09",
+  "base": "Macuspana",
+  "tipo_base": "centro",
+  "estado": "Tabasco",
+  "lat": 17.76092,
+  "lng": -92.596049
+ },
+ {
+  "codigo": "TAB-10",
+  "base": "Nacajuca",
+  "tipo_base": "centro",
+  "estado": "Tabasco",
+  "lat": 18.168268,
+  "lng": -93.01899
+ },
+ {
+  "codigo": "TAB-11",
+  "base": "Ocuiltzapotlán",
+  "tipo_base": "centro",
+  "estado": "Tabasco",
+  "lat": 18.135321,
+  "lng": -92.861853
+ },
+ {
+  "codigo": "TAB-12",
+  "base": "Paraíso",
+  "tipo_base": "centro",
+  "estado": "Tabasco",
+  "lat": 18.398754,
+  "lng": -93.21258
+ },
+ {
+  "codigo": "TAB-13",
+  "base": "Tacotalpa",
+  "tipo_base": "centro",
+  "estado": "Tabasco",
+  "lat": 17.595143,
+  "lng": -92.825364
+ },
+ {
+  "codigo": "TAB-14",
+  "base": "Teapa",
+  "tipo_base": "centro",
+  "estado": "Tabasco",
+  "lat": 17.55671,
+  "lng": -92.948044
+ },
+ {
+  "codigo": "TAB-15",
+  "base": "Tenosique de Pino Suárez",
+  "tipo_base": "centro",
+  "estado": "Tabasco",
+  "lat": 17.470753,
+  "lng": -91.421817
+ },
+ {
+  "codigo": "TAB-16",
+  "base": "Villa Parrilla",
+  "tipo_base": "centro",
+  "estado": "Tabasco",
+  "lat": 17.913334,
+  "lng": -92.915775
+ },
+ {
+  "codigo": "TAB-17",
+  "base": "Villahermosa",
+  "tipo_base": "centro",
+  "estado": "Tabasco",
+  "lat": 17.988485,
+  "lng": -92.936962
+ },
+ {
+  "codigo": "TAB-18",
+  "base": "Villahermosa",
+  "tipo_base": "centro",
+  "estado": "Tabasco",
+  "lat": 17.988485,
+  "lng": -92.936962
+ },
+ {
+  "codigo": "TAB-19",
+  "base": "Villahermosa · Aeropuerto",
+  "tipo_base": "aeropuerto",
+  "estado": "Tabasco",
+  "lat": 17.992557,
+  "lng": -92.818619
+ },
+ {
+  "codigo": "TAB-20",
+  "base": "Villahermosa · Terminal de autobuses",
+  "tipo_base": "terminal",
+  "estado": "Tabasco",
+  "lat": 17.996765,
+  "lng": -92.921847
+ },
+ {
+  "codigo": "TAB-21",
+  "base": "Villahermosa · Atasta de Serra",
+  "tipo_base": "colonia",
+  "estado": "Tabasco",
+  "lat": 17.984529,
+  "lng": -92.949471
+ },
+ {
+  "codigo": "TAB-22",
+  "base": "Villahermosa · Casa Blanca",
+  "tipo_base": "colonia",
+  "estado": "Tabasco",
+  "lat": 18.002024,
+  "lng": -92.913688
+ },
+ {
+  "codigo": "TAB-23",
+  "base": "Villahermosa · Ciudad Industrial",
+  "tipo_base": "colonia",
+  "estado": "Tabasco",
+  "lat": 18.02574,
+  "lng": -92.901028
+ },
+ {
+  "codigo": "TAB-24",
+  "base": "Villahermosa · Gaviotas",
+  "tipo_base": "colonia",
+  "estado": "Tabasco",
+  "lat": 17.98113,
+  "lng": -92.919547
+ },
+ {
+  "codigo": "TAB-25",
+  "base": "Villahermosa · Indeco",
+  "tipo_base": "colonia",
+  "estado": "Tabasco",
+  "lat": 18.021605,
+  "lng": -92.897943
+ },
+ {
+  "codigo": "TAB-26",
+  "base": "Villahermosa · José María Pino Suárez",
+  "tipo_base": "colonia",
+  "estado": "Tabasco",
+  "lat": 17.972961,
+  "lng": -92.951864
+ },
+ {
+  "codigo": "TAB-27",
+  "base": "Villahermosa · Tabasco 2000",
+  "tipo_base": "colonia",
+  "estado": "Tabasco",
+  "lat": 17.997942,
+  "lng": -92.945687
+ },
+ {
+  "codigo": "TAB-28",
+  "base": "Villahermosa · Tamulté de las Barrancas",
+  "tipo_base": "colonia",
+  "estado": "Tabasco",
+  "lat": 17.970819,
+  "lng": -92.95845
+ },
+ {
+  "codigo": "CAM-01",
+  "base": "Calkiní",
+  "tipo_base": "centro",
+  "estado": "Campeche",
+  "lat": 20.370062,
+  "lng": -90.050689
+ },
+ {
+  "codigo": "CAM-02",
+  "base": "Candelaria",
+  "tipo_base": "centro",
+  "estado": "Campeche",
+  "lat": 18.185947,
+  "lng": -91.043073
+ },
+ {
+  "codigo": "CAM-03",
+  "base": "Champotón",
+  "tipo_base": "centro",
+  "estado": "Campeche",
+  "lat": 19.343546,
+  "lng": -90.724359
+ },
+ {
+  "codigo": "CAM-04",
+  "base": "Ciudad del Carmen",
+  "tipo_base": "centro",
+  "estado": "Campeche",
+  "lat": 18.651743,
+  "lng": -91.81492
+ },
+ {
+  "codigo": "CAM-05",
+  "base": "Ciudad del Carmen",
+  "tipo_base": "centro",
+  "estado": "Campeche",
+  "lat": 18.651743,
+  "lng": -91.81492
+ },
+ {
+  "codigo": "CAM-06",
+  "base": "Ciudad del Carmen · Aeropuerto",
+  "tipo_base": "aeropuerto",
+  "estado": "Campeche",
+  "lat": 18.650552,
+  "lng": -91.802263
+ },
+ {
+  "codigo": "CAM-07",
+  "base": "Ciudad del Carmen · Terminal de autobuses",
+  "tipo_base": "terminal",
+  "estado": "Campeche",
+  "lat": 18.645091,
+  "lng": -91.808269
+ },
+ {
+  "codigo": "CAM-08",
+  "base": "Ciudad del Carmen · Playa Norte",
+  "tipo_base": "colonia",
+  "estado": "Campeche",
+  "lat": 18.661445,
+  "lng": -91.839279
+ },
+ {
+  "codigo": "CAM-09",
+  "base": "Escárcega",
+  "tipo_base": "centro",
+  "estado": "Campeche",
+  "lat": 18.606538,
+  "lng": -90.738634
+ },
+ {
+  "codigo": "CAM-10",
+  "base": "Hecelchakán",
+  "tipo_base": "centro",
+  "estado": "Campeche",
+  "lat": 20.177396,
+  "lng": -90.133789
+ },
+ {
+  "codigo": "CAM-11",
+  "base": "Sabancuy",
+  "tipo_base": "centro",
+  "estado": "Campeche",
+  "lat": 18.97179,
+  "lng": -91.177945
+ },
+ {
+  "codigo": "CAM-12",
+  "base": "San Francisco de Campeche",
+  "tipo_base": "centro",
+  "estado": "Campeche",
+  "lat": 19.843847,
+  "lng": -90.536369
+ },
+ {
+  "codigo": "CAM-13",
+  "base": "San Francisco de Campeche",
+  "tipo_base": "centro",
+  "estado": "Campeche",
+  "lat": 19.843847,
+  "lng": -90.536369
+ },
+ {
+  "codigo": "CAM-14",
+  "base": "San Francisco de Campeche · Aeropuerto",
+  "tipo_base": "aeropuerto",
+  "estado": "Campeche",
+  "lat": 19.814605,
+  "lng": -90.504088
+ },
+ {
+  "codigo": "CAM-15",
+  "base": "San Francisco de Campeche · Terminal de autobuses",
+  "tipo_base": "terminal",
+  "estado": "Campeche",
+  "lat": 19.823162,
+  "lng": -90.531634
+ },
+ {
+  "codigo": "CAM-16",
+  "base": "San Francisco de Campeche · Kalá",
+  "tipo_base": "colonia",
+  "estado": "Campeche",
+  "lat": 19.846123,
+  "lng": -90.485774
+ },
+ {
+  "codigo": "CAM-17",
+  "base": "San Francisco de Campeche · San Román",
+  "tipo_base": "colonia",
+  "estado": "Campeche",
+  "lat": 19.839133,
+  "lng": -90.544878
+ },
+ {
+  "codigo": "CAM-18",
+  "base": "San Francisco de Campeche · Santa Ana",
+  "tipo_base": "colonia",
+  "estado": "Campeche",
+  "lat": 19.838399,
+  "lng": -90.527094
+ },
+ {
+  "codigo": "CAM-19",
+  "base": "San Francisco de Campeche · Siglo XXI",
+  "tipo_base": "colonia",
+  "estado": "Campeche",
+  "lat": 19.806124,
+  "lng": -90.491466
+ },
+ {
+  "codigo": "YUC-01",
+  "base": "Izamal",
+  "tipo_base": "centro",
+  "estado": "Yucatán",
+  "lat": 20.933126,
+  "lng": -89.018319
+ },
+ {
+  "codigo": "YUC-02",
+  "base": "Kanasín",
+  "tipo_base": "centro",
+  "estado": "Yucatán",
+  "lat": 20.935277,
+  "lng": -89.557638
+ },
+ {
+  "codigo": "YUC-03",
+  "base": "Motul",
+  "tipo_base": "centro",
+  "estado": "Yucatán",
+  "lat": 21.095051,
+  "lng": -89.283322
+ },
+ {
+  "codigo": "YUC-04",
+  "base": "Mérida",
+  "tipo_base": "centro",
+  "estado": "Yucatán",
+  "lat": 20.967172,
+  "lng": -89.624283
+ },
+ {
+  "codigo": "YUC-05",
+  "base": "Mérida",
+  "tipo_base": "centro",
+  "estado": "Yucatán",
+  "lat": 20.967172,
+  "lng": -89.624283
+ },
+ {
+  "codigo": "YUC-06",
+  "base": "Mérida · Aeropuerto",
+  "tipo_base": "aeropuerto",
+  "estado": "Yucatán",
+  "lat": 20.924622,
+  "lng": -89.658553
+ },
+ {
+  "codigo": "YUC-07",
+  "base": "Mérida · Terminal de autobuses",
+  "tipo_base": "terminal",
+  "estado": "Yucatán",
+  "lat": 20.962919,
+  "lng": -89.629974
+ },
+ {
+  "codigo": "YUC-08",
+  "base": "Mérida · Centro",
+  "tipo_base": "colonia",
+  "estado": "Yucatán",
+  "lat": 20.971855,
+  "lng": -89.627018
+ },
+ {
+  "codigo": "YUC-09",
+  "base": "Mérida · Ciudad Caucel",
+  "tipo_base": "colonia",
+  "estado": "Yucatán",
+  "lat": 20.996973,
+  "lng": -89.700903
+ },
+ {
+  "codigo": "YUC-10",
+  "base": "Mérida · García Ginerés",
+  "tipo_base": "colonia",
+  "estado": "Yucatán",
+  "lat": 20.989619,
+  "lng": -89.63339
+ },
+ {
+  "codigo": "YUC-11",
+  "base": "Mérida · Las Américas",
+  "tipo_base": "colonia",
+  "estado": "Yucatán",
+  "lat": 21.06929,
+  "lng": -89.655788
+ },
+ {
+  "codigo": "YUC-12",
+  "base": "Mérida · Vergel",
+  "tipo_base": "colonia",
+  "estado": "Yucatán",
+  "lat": 20.953178,
+  "lng": -89.58919
+ },
+ {
+  "codigo": "YUC-13",
+  "base": "Oxkutzcab",
+  "tipo_base": "centro",
+  "estado": "Yucatán",
+  "lat": 20.304615,
+  "lng": -89.417119
+ },
+ {
+  "codigo": "YUC-14",
+  "base": "Progreso",
+  "tipo_base": "centro",
+  "estado": "Yucatán",
+  "lat": 21.282211,
+  "lng": -89.663687
+ },
+ {
+  "codigo": "YUC-15",
+  "base": "Tekax",
+  "tipo_base": "centro",
+  "estado": "Yucatán",
+  "lat": 20.20508,
+  "lng": -89.285472
+ },
+ {
+  "codigo": "YUC-16",
+  "base": "Ticul",
+  "tipo_base": "centro",
+  "estado": "Yucatán",
+  "lat": 20.396633,
+  "lng": -89.53532
+ },
+ {
+  "codigo": "YUC-17",
+  "base": "Tizimín",
+  "tipo_base": "centro",
+  "estado": "Yucatán",
+  "lat": 21.142567,
+  "lng": -88.152696
+ },
+ {
+  "codigo": "YUC-18",
+  "base": "Umán",
+  "tipo_base": "centro",
+  "estado": "Yucatán",
+  "lat": 20.881183,
+  "lng": -89.746218
+ },
+ {
+  "codigo": "YUC-19",
+  "base": "Valladolid",
+  "tipo_base": "centro",
+  "estado": "Yucatán",
+  "lat": 20.690775,
+  "lng": -88.201714
+ },
+ {
+  "codigo": "YUC-20",
+  "base": "Valladolid · Terminal de autobuses",
+  "tipo_base": "terminal",
+  "estado": "Yucatán",
+  "lat": 20.690778,
+  "lng": -88.204774
+ },
+ {
+  "codigo": "QROO-01",
+  "base": "Bacalar",
+  "tipo_base": "centro",
+  "estado": "Quintana Roo",
+  "lat": 18.678427,
+  "lng": -88.392718
+ },
+ {
+  "codigo": "QROO-02",
+  "base": "Cancún",
+  "tipo_base": "centro",
+  "estado": "Quintana Roo",
+  "lat": 21.152671,
+  "lng": -86.842743
+ },
+ {
+  "codigo": "QROO-03",
+  "base": "Cancún",
+  "tipo_base": "centro",
+  "estado": "Quintana Roo",
+  "lat": 21.152671,
+  "lng": -86.842743
+ },
+ {
+  "codigo": "QROO-04",
+  "base": "Cancún · Aeropuerto",
+  "tipo_base": "aeropuerto",
+  "estado": "Quintana Roo",
+  "lat": 21.042777,
+  "lng": -86.879226
+ },
+ {
+  "codigo": "QROO-05",
+  "base": "Cancún · Terminal de autobuses",
+  "tipo_base": "terminal",
+  "estado": "Quintana Roo",
+  "lat": 21.164486,
+  "lng": -86.826745
+ },
+ {
+  "codigo": "QROO-06",
+  "base": "Cancún · Zona Hotelera",
+  "tipo_base": "colonia",
+  "estado": "Quintana Roo",
+  "lat": 21.102428,
+  "lng": -86.765655
+ },
+ {
+  "codigo": "QROO-07",
+  "base": "Chetumal",
+  "tipo_base": "centro",
+  "estado": "Quintana Roo",
+  "lat": 18.502459,
+  "lng": -88.29579
+ },
+ {
+  "codigo": "QROO-08",
+  "base": "Chetumal",
+  "tipo_base": "centro",
+  "estado": "Quintana Roo",
+  "lat": 18.502459,
+  "lng": -88.29579
+ },
+ {
+  "codigo": "QROO-09",
+  "base": "Chetumal · Aeropuerto",
+  "tipo_base": "aeropuerto",
+  "estado": "Quintana Roo",
+  "lat": 18.504834,
+  "lng": -88.333024
+ },
+ {
+  "codigo": "QROO-10",
+  "base": "Chetumal · Terminal de autobuses",
+  "tipo_base": "terminal",
+  "estado": "Quintana Roo",
+  "lat": 18.518385,
+  "lng": -88.31336
+ },
+ {
+  "codigo": "QROO-11",
+  "base": "Cozumel",
+  "tipo_base": "centro",
+  "estado": "Quintana Roo",
+  "lat": 20.501331,
+  "lng": -86.943677
+ },
+ {
+  "codigo": "QROO-12",
+  "base": "Cozumel · Aeropuerto",
+  "tipo_base": "aeropuerto",
+  "estado": "Quintana Roo",
+  "lat": 20.527536,
+  "lng": -86.938425
+ },
+ {
+  "codigo": "QROO-13",
+  "base": "Felipe Carrillo Puerto",
+  "tipo_base": "centro",
+  "estado": "Quintana Roo",
+  "lat": 19.577459,
+  "lng": -88.046353
+ },
+ {
+  "codigo": "QROO-14",
+  "base": "Isla Mujeres",
+  "tipo_base": "centro",
+  "estado": "Quintana Roo",
+  "lat": 21.237236,
+  "lng": -86.734901
+ },
+ {
+  "codigo": "QROO-15",
+  "base": "José María Morelos",
+  "tipo_base": "centro",
+  "estado": "Quintana Roo",
+  "lat": 19.748603,
+  "lng": -88.710076
+ },
+ {
+  "codigo": "QROO-16",
+  "base": "Playa del Carmen",
+  "tipo_base": "centro",
+  "estado": "Quintana Roo",
+  "lat": 20.646337,
+  "lng": -87.080762
+ },
+ {
+  "codigo": "QROO-17",
+  "base": "Playa del Carmen",
+  "tipo_base": "centro",
+  "estado": "Quintana Roo",
+  "lat": 20.646337,
+  "lng": -87.080762
+ },
+ {
+  "codigo": "QROO-18",
+  "base": "Playa del Carmen · Terminal de autobuses",
+  "tipo_base": "terminal",
+  "estado": "Quintana Roo",
+  "lat": 20.628024,
+  "lng": -87.084546
+ },
+ {
+  "codigo": "QROO-19",
+  "base": "Playa del Carmen · Colosio",
+  "tipo_base": "colonia",
+  "estado": "Quintana Roo",
+  "lat": 20.644721,
+  "lng": -87.064583
+ },
+ {
+  "codigo": "QROO-20",
+  "base": "Puerto Morelos",
+  "tipo_base": "centro",
+  "estado": "Quintana Roo",
+  "lat": 20.855471,
+  "lng": -86.899981
+ },
+ {
+  "codigo": "QROO-21",
+  "base": "Tulum",
+  "tipo_base": "centro",
+  "estado": "Quintana Roo",
+  "lat": 20.211152,
+  "lng": -87.46276
+ },
+ {
+  "codigo": "QROO-22",
+  "base": "Tulum · Aeropuerto",
+  "tipo_base": "aeropuerto",
+  "estado": "Quintana Roo",
+  "lat": 20.165958,
+  "lng": -87.659224
+ },
+ {
+  "codigo": "CHIS-01",
+  "base": "Catazajá",
+  "tipo_base": "centro",
+  "estado": "Chiapas",
+  "lat": 17.723578,
+  "lng": -92.012222
+ },
+ {
+  "codigo": "CHIS-02",
+  "base": "Chiapa de Corzo",
+  "tipo_base": "centro",
+  "estado": "Chiapas",
+  "lat": 16.707218,
+  "lng": -93.011735
+ },
+ {
+  "codigo": "CHIS-03",
+  "base": "Cintalapa de Figueroa",
+  "tipo_base": "centro",
+  "estado": "Chiapas",
+  "lat": 16.690178,
+  "lng": -93.72582
+ },
+ {
+  "codigo": "CHIS-04",
+  "base": "Comitán de Domínguez",
+  "tipo_base": "centro",
+  "estado": "Chiapas",
+  "lat": 16.251964,
+  "lng": -92.13517
+ },
+ {
+  "codigo": "CHIS-05",
+  "base": "Huixtla",
+  "tipo_base": "centro",
+  "estado": "Chiapas",
+  "lat": 15.138337,
+  "lng": -92.463752
+ },
+ {
+  "codigo": "CHIS-06",
+  "base": "Ocosingo",
+  "tipo_base": "centro",
+  "estado": "Chiapas",
+  "lat": 16.905549,
+  "lng": -92.093196
+ },
+ {
+  "codigo": "CHIS-07",
+  "base": "Palenque",
+  "tipo_base": "centro",
+  "estado": "Chiapas",
+  "lat": 17.509181,
+  "lng": -91.980705
+ },
+ {
+  "codigo": "CHIS-08",
+  "base": "Palenque · Aeropuerto",
+  "tipo_base": "aeropuerto",
+  "estado": "Chiapas",
+  "lat": 17.53714,
+  "lng": -92.014908
+ },
+ {
+  "codigo": "CHIS-09",
+  "base": "Pichucalco",
+  "tipo_base": "centro",
+  "estado": "Chiapas",
+  "lat": 17.511026,
+  "lng": -93.118825
+ },
+ {
+  "codigo": "CHIS-10",
+  "base": "Reforma",
+  "tipo_base": "centro",
+  "estado": "Chiapas",
+  "lat": 17.857993,
+  "lng": -93.155482
+ },
+ {
+  "codigo": "CHIS-11",
+  "base": "San Cristóbal de las Casas",
+  "tipo_base": "centro",
+  "estado": "Chiapas",
+  "lat": 16.735382,
+  "lng": -92.638883
+ },
+ {
+  "codigo": "CHIS-12",
+  "base": "San Cristóbal de las Casas · Terminal de autobuses",
+  "tipo_base": "terminal",
+  "estado": "Chiapas",
+  "lat": 16.729603,
+  "lng": -92.636669
+ },
+ {
+  "codigo": "CHIS-13",
+  "base": "Tapachula",
+  "tipo_base": "centro",
+  "estado": "Chiapas",
+  "lat": 14.904442,
+  "lng": -92.26123
+ },
+ {
+  "codigo": "CHIS-14",
+  "base": "Tapachula",
+  "tipo_base": "centro",
+  "estado": "Chiapas",
+  "lat": 14.904442,
+  "lng": -92.26123
+ },
+ {
+  "codigo": "CHIS-15",
+  "base": "Tapachula · Aeropuerto",
+  "tipo_base": "aeropuerto",
+  "estado": "Chiapas",
+  "lat": 14.788021,
+  "lng": -92.376259
+ },
+ {
+  "codigo": "CHIS-16",
+  "base": "Tapachula · Terminal de autobuses",
+  "tipo_base": "terminal",
+  "estado": "Chiapas",
+  "lat": 14.913419,
+  "lng": -92.25758
+ },
+ {
+  "codigo": "CHIS-17",
+  "base": "Tonalá",
+  "tipo_base": "centro",
+  "estado": "Chiapas",
+  "lat": 16.089591,
+  "lng": -93.754888
+ },
+ {
+  "codigo": "CHIS-18",
+  "base": "Tuxtla Gutiérrez",
+  "tipo_base": "centro",
+  "estado": "Chiapas",
+  "lat": 16.753836,
+  "lng": -93.116167
+ },
+ {
+  "codigo": "CHIS-19",
+  "base": "Tuxtla Gutiérrez",
+  "tipo_base": "centro",
+  "estado": "Chiapas",
+  "lat": 16.753836,
+  "lng": -93.116167
+ },
+ {
+  "codigo": "CHIS-20",
+  "base": "Tuxtla Gutiérrez · Aeropuerto",
+  "tipo_base": "aeropuerto",
+  "estado": "Chiapas",
+  "lat": 16.560529,
+  "lng": -93.018948
+ },
+ {
+  "codigo": "CHIS-21",
+  "base": "Tuxtla Gutiérrez · Terminal de autobuses",
+  "tipo_base": "terminal",
+  "estado": "Chiapas",
+  "lat": 16.743321,
+  "lng": -93.103189
+ },
+ {
+  "codigo": "CHIS-22",
+  "base": "Tuxtla Gutiérrez · Plan de Ayala",
+  "tipo_base": "colonia",
+  "estado": "Chiapas",
+  "lat": 16.773268,
+  "lng": -93.194927
+ },
+ {
+  "codigo": "CHIS-23",
+  "base": "Tuxtla Gutiérrez · Terán",
+  "tipo_base": "colonia",
+  "estado": "Chiapas",
+  "lat": 16.752839,
+  "lng": -93.163866
+ },
+ {
+  "codigo": "CHIS-24",
+  "base": "Villaflores",
+  "tipo_base": "centro",
+  "estado": "Chiapas",
+  "lat": 16.232885,
+  "lng": -93.270497
+ },
+ {
+  "codigo": "OAX-01",
+  "base": "Ciudad Ixtepec",
+  "tipo_base": "centro",
+  "estado": "Oaxaca",
+  "lat": 16.556183,
+  "lng": -95.096278
+ },
+ {
+  "codigo": "OAX-02",
+  "base": "Heroica Ciudad de Huajuapan de León",
+  "tipo_base": "centro",
+  "estado": "Oaxaca",
+  "lat": 17.80908,
+  "lng": -97.778012
+ },
+ {
+  "codigo": "OAX-03",
+  "base": "Juchitán de Zaragoza",
+  "tipo_base": "centro",
+  "estado": "Oaxaca",
+  "lat": 16.433324,
+  "lng": -95.019721
+ },
+ {
+  "codigo": "OAX-04",
+  "base": "La Crucecita",
+  "tipo_base": "centro",
+  "estado": "Oaxaca",
+  "lat": 15.768284,
+  "lng": -96.136905
+ },
+ {
+  "codigo": "OAX-05",
+  "base": "La Crucecita · Aeropuerto",
+  "tipo_base": "aeropuerto",
+  "estado": "Oaxaca",
+  "lat": 15.772233,
+  "lng": -96.257454
+ },
+ {
+  "codigo": "OAX-06",
+  "base": "Loma Bonita",
+  "tipo_base": "centro",
+  "estado": "Oaxaca",
+  "lat": 18.107998,
+  "lng": -95.879266
+ },
+ {
+  "codigo": "OAX-07",
+  "base": "Miahuatlán de Porfirio Díaz",
+  "tipo_base": "centro",
+  "estado": "Oaxaca",
+  "lat": 16.327904,
+  "lng": -96.594756
+ },
+ {
+  "codigo": "OAX-08",
+  "base": "Oaxaca de Juárez",
+  "tipo_base": "centro",
+  "estado": "Oaxaca",
+  "lat": 17.060043,
+  "lng": -96.724968
+ },
+ {
+  "codigo": "OAX-09",
+  "base": "Oaxaca de Juárez",
+  "tipo_base": "centro",
+  "estado": "Oaxaca",
+  "lat": 17.060043,
+  "lng": -96.724968
+ },
+ {
+  "codigo": "OAX-10",
+  "base": "Oaxaca de Juárez · Aeropuerto",
+  "tipo_base": "aeropuerto",
+  "estado": "Oaxaca",
+  "lat": 17.000582,
+  "lng": -96.721619
+ },
+ {
+  "codigo": "OAX-11",
+  "base": "Oaxaca de Juárez · Terminal de autobuses",
+  "tipo_base": "terminal",
+  "estado": "Oaxaca",
+  "lat": 17.12308,
+  "lng": -96.764681
+ },
+ {
+  "codigo": "OAX-12",
+  "base": "Oaxaca de Juárez · Reforma",
+  "tipo_base": "colonia",
+  "estado": "Oaxaca",
+  "lat": 17.076263,
+  "lng": -96.714417
+ },
+ {
+  "codigo": "OAX-13",
+  "base": "Puerto Escondido",
+  "tipo_base": "centro",
+  "estado": "Oaxaca",
+  "lat": 15.869267,
+  "lng": -97.072886
+ },
+ {
+  "codigo": "OAX-14",
+  "base": "Puerto Escondido · Aeropuerto",
+  "tipo_base": "aeropuerto",
+  "estado": "Oaxaca",
+  "lat": 15.874756,
+  "lng": -97.088975
+ },
+ {
+  "codigo": "OAX-15",
+  "base": "Salina Cruz",
+  "tipo_base": "centro",
+  "estado": "Oaxaca",
+  "lat": 16.182477,
+  "lng": -95.195881
+ },
+ {
+  "codigo": "OAX-16",
+  "base": "San Juan Bautista Tuxtepec",
+  "tipo_base": "centro",
+  "estado": "Oaxaca",
+  "lat": 18.087416,
+  "lng": -96.122509
+ },
+ {
+  "codigo": "OAX-17",
+  "base": "San Juan Bautista Tuxtepec · Terminal de autobuses",
+  "tipo_base": "terminal",
+  "estado": "Oaxaca",
+  "lat": 18.0849,
+  "lng": -96.125372
+ },
+ {
+  "codigo": "OAX-18",
+  "base": "Santiago Pinotepa Nacional",
+  "tipo_base": "centro",
+  "estado": "Oaxaca",
+  "lat": 16.340572,
+  "lng": -98.053543
+ },
+ {
+  "codigo": "OAX-19",
+  "base": "Santo Domingo Tehuantepec",
+  "tipo_base": "centro",
+  "estado": "Oaxaca",
+  "lat": 16.317227,
+  "lng": -95.246628
+ },
+ {
+  "codigo": "VER-01",
+  "base": "Acayucan",
+  "tipo_base": "centro",
+  "estado": "Veracruz",
+  "lat": 17.948671,
+  "lng": -94.914602
+ },
+ {
+  "codigo": "VER-02",
+  "base": "Agua Dulce",
+  "tipo_base": "centro",
+  "estado": "Veracruz",
+  "lat": 18.137021,
+  "lng": -94.147195
+ },
+ {
+  "codigo": "VER-03",
+  "base": "Coatepec",
+  "tipo_base": "centro",
+  "estado": "Veracruz",
+  "lat": 19.454058,
+  "lng": -96.959787
+ },
+ {
+  "codigo": "VER-04",
+  "base": "Coatzacoalcos",
+  "tipo_base": "centro",
+  "estado": "Veracruz",
+  "lat": 18.140486,
+  "lng": -94.434346
+ },
+ {
+  "codigo": "VER-05",
+  "base": "Coatzacoalcos",
+  "tipo_base": "centro",
+  "estado": "Veracruz",
+  "lat": 18.140486,
+  "lng": -94.434346
+ },
+ {
+  "codigo": "VER-06",
+  "base": "Coatzacoalcos · Terminal de autobuses",
+  "tipo_base": "terminal",
+  "estado": "Veracruz",
+  "lat": 18.120362,
+  "lng": -94.444972
+ },
+ {
+  "codigo": "VER-07",
+  "base": "Coatzacoalcos · Puerto México",
+  "tipo_base": "colonia",
+  "estado": "Veracruz",
+  "lat": 18.148279,
+  "lng": -94.445458
+ },
+ {
+  "codigo": "VER-08",
+  "base": "Coatzacoalcos · Villa Allende",
+  "tipo_base": "colonia",
+  "estado": "Veracruz",
+  "lat": 18.154047,
+  "lng": -94.394106
+ },
+ {
+  "codigo": "VER-09",
+  "base": "Cosoleacaque",
+  "tipo_base": "centro",
+  "estado": "Veracruz",
+  "lat": 17.997207,
+  "lng": -94.63576
+ },
+ {
+  "codigo": "VER-10",
+  "base": "Córdoba",
+  "tipo_base": "centro",
+  "estado": "Veracruz",
+  "lat": 18.894752,
+  "lng": -96.935005
+ },
+ {
+  "codigo": "VER-11",
+  "base": "Córdoba · Terminal de autobuses",
+  "tipo_base": "terminal",
+  "estado": "Veracruz",
+  "lat": 18.882923,
+  "lng": -96.918929
+ },
+ {
+  "codigo": "VER-12",
+  "base": "Las Choapas",
+  "tipo_base": "centro",
+  "estado": "Veracruz",
+  "lat": 17.909977,
+  "lng": -94.092998
+ },
+ {
+  "codigo": "VER-13",
+  "base": "Martínez de la Torre",
+  "tipo_base": "centro",
+  "estado": "Veracruz",
+  "lat": 20.061181,
+  "lng": -97.054331
+ },
+ {
+  "codigo": "VER-14",
+  "base": "Minatitlán",
+  "tipo_base": "centro",
+  "estado": "Veracruz",
+  "lat": 17.992498,
+  "lng": -94.556668
+ },
+ {
+  "codigo": "VER-15",
+  "base": "Minatitlán · Aeropuerto",
+  "tipo_base": "aeropuerto",
+  "estado": "Veracruz",
+  "lat": 18.101458,
+  "lng": -94.577017
+ },
+ {
+  "codigo": "VER-16",
+  "base": "Orizaba",
+  "tipo_base": "centro",
+  "estado": "Veracruz",
+  "lat": 18.849806,
+  "lng": -97.105736
+ },
+ {
+  "codigo": "VER-17",
+  "base": "Orizaba · Terminal de autobuses",
+  "tipo_base": "terminal",
+  "estado": "Veracruz",
+  "lat": 18.846731,
+  "lng": -97.099205
+ },
+ {
+  "codigo": "VER-18",
+  "base": "Papantla de Olarte",
+  "tipo_base": "centro",
+  "estado": "Veracruz",
+  "lat": 20.447005,
+  "lng": -97.322742
+ },
+ {
+  "codigo": "VER-19",
+  "base": "Poza Rica de Hidalgo",
+  "tipo_base": "centro",
+  "estado": "Veracruz",
+  "lat": 20.531704,
+  "lng": -97.453173
+ },
+ {
+  "codigo": "VER-20",
+  "base": "Poza Rica de Hidalgo · Aeropuerto",
+  "tipo_base": "aeropuerto",
+  "estado": "Veracruz",
+  "lat": 20.598528,
+  "lng": -97.463898
+ },
+ {
+  "codigo": "VER-21",
+  "base": "Poza Rica de Hidalgo · Terminal de autobuses",
+  "tipo_base": "terminal",
+  "estado": "Veracruz",
+  "lat": 20.541718,
+  "lng": -97.467822
+ },
+ {
+  "codigo": "VER-22",
+  "base": "Pánuco",
+  "tipo_base": "centro",
+  "estado": "Veracruz",
+  "lat": 22.056308,
+  "lng": -98.182924
+ },
+ {
+  "codigo": "VER-23",
+  "base": "San Andrés Tuxtla",
+  "tipo_base": "centro",
+  "estado": "Veracruz",
+  "lat": 18.445961,
+  "lng": -95.213547
+ },
+ {
+  "codigo": "VER-24",
+  "base": "Tierra Blanca",
+  "tipo_base": "centro",
+  "estado": "Veracruz",
+  "lat": 18.447777,
+  "lng": -96.361115
+ },
+ {
+  "codigo": "VER-25",
+  "base": "Túxpam de Rodríguez Cano",
+  "tipo_base": "centro",
+  "estado": "Veracruz",
+  "lat": 20.951655,
+  "lng": -97.404612
+ },
+ {
+  "codigo": "VER-26",
+  "base": "Veracruz",
+  "tipo_base": "centro",
+  "estado": "Veracruz",
+  "lat": 19.200057,
+  "lng": -96.138787
+ },
+ {
+  "codigo": "VER-27",
+  "base": "Veracruz",
+  "tipo_base": "centro",
+  "estado": "Veracruz",
+  "lat": 19.200057,
+  "lng": -96.138787
+ },
+ {
+  "codigo": "VER-28",
+  "base": "Veracruz · Aeropuerto",
+  "tipo_base": "aeropuerto",
+  "estado": "Veracruz",
+  "lat": 19.133982,
+  "lng": -96.184428
+ },
+ {
+  "codigo": "VER-29",
+  "base": "Veracruz · Terminal de autobuses",
+  "tipo_base": "terminal",
+  "estado": "Veracruz",
+  "lat": 19.178551,
+  "lng": -96.134606
+ },
+ {
+  "codigo": "VER-30",
+  "base": "Veracruz · Boca del Río",
+  "tipo_base": "colonia",
+  "estado": "Veracruz",
+  "lat": 19.103334,
+  "lng": -96.106186
+ },
+ {
+  "codigo": "VER-31",
+  "base": "Veracruz · Floresta",
+  "tipo_base": "colonia",
+  "estado": "Veracruz",
+  "lat": 19.155033,
+  "lng": -96.136018
+ },
+ {
+  "codigo": "VER-32",
+  "base": "Veracruz · Formando Hogar",
+  "tipo_base": "colonia",
+  "estado": "Veracruz",
+  "lat": 19.20217,
+  "lng": -96.156382
+ },
+ {
+  "codigo": "VER-33",
+  "base": "Xalapa-Enríquez",
+  "tipo_base": "centro",
+  "estado": "Veracruz",
+  "lat": 19.541,
+  "lng": -96.914809
+ },
+ {
+  "codigo": "VER-34",
+  "base": "Xalapa-Enríquez",
+  "tipo_base": "centro",
+  "estado": "Veracruz",
+  "lat": 19.541,
+  "lng": -96.914809
+ },
+ {
+  "codigo": "VER-35",
+  "base": "Xalapa-Enríquez · Aeropuerto",
+  "tipo_base": "aeropuerto",
+  "estado": "Veracruz",
+  "lat": 19.476306,
+  "lng": -96.800177
+ },
+ {
+  "codigo": "VER-36",
+  "base": "Xalapa-Enríquez · Terminal de autobuses",
+  "tipo_base": "terminal",
+  "estado": "Veracruz",
+  "lat": 19.52521,
+  "lng": -96.901586
+ },
+ {
+  "codigo": "VER-37",
+  "base": "Xalapa-Enríquez · Las Ánimas",
+  "tipo_base": "colonia",
+  "estado": "Veracruz",
+  "lat": 19.520709,
+  "lng": -96.881865
+ },
+ {
+  "codigo": "VER-38",
+  "base": "Xalapa-Enríquez · Rafael Lucio",
+  "tipo_base": "colonia",
+  "estado": "Veracruz",
+  "lat": 19.560809,
+  "lng": -96.919968
+ },
+ {
+  "codigo": "VER-39",
+  "base": "Xalapa-Enríquez · Revolución",
+  "tipo_base": "colonia",
+  "estado": "Veracruz",
+  "lat": 19.570011,
+  "lng": -96.920417
+ },
+ {
+  "codigo": "GRO-01",
+  "base": "Acapulco de Juárez",
+  "tipo_base": "centro",
+  "estado": "Guerrero",
+  "lat": 16.867974,
+  "lng": -99.894267
+ },
+ {
+  "codigo": "GRO-02",
+  "base": "Acapulco de Juárez",
+  "tipo_base": "centro",
+  "estado": "Guerrero",
+  "lat": 16.867974,
+  "lng": -99.894267
+ },
+ {
+  "codigo": "GRO-03",
+  "base": "Acapulco de Juárez · Aeropuerto",
+  "tipo_base": "aeropuerto",
+  "estado": "Guerrero",
+  "lat": 16.759406,
+  "lng": -99.75469
+ },
+ {
+  "codigo": "GRO-04",
+  "base": "Acapulco de Juárez · Terminal de autobuses",
+  "tipo_base": "terminal",
+  "estado": "Guerrero",
+  "lat": 16.86258,
+  "lng": -99.908368
+ },
+ {
+  "codigo": "GRO-05",
+  "base": "Acapulco de Juárez · Ciudad Renacimiento",
+  "tipo_base": "colonia",
+  "estado": "Guerrero",
+  "lat": 16.895806,
+  "lng": -99.822282
+ },
+ {
+  "codigo": "GRO-06",
+  "base": "Acapulco de Juárez · Costa Azul",
+  "tipo_base": "colonia",
+  "estado": "Guerrero",
+  "lat": 16.855887,
+  "lng": -99.847994
+ },
+ {
+  "codigo": "GRO-07",
+  "base": "Acapulco de Juárez · Icacos",
+  "tipo_base": "colonia",
+  "estado": "Guerrero",
+  "lat": 16.842278,
+  "lng": -99.848287
+ },
+ {
+  "codigo": "GRO-08",
+  "base": "Acapulco de Juárez · Mozimba",
+  "tipo_base": "colonia",
+  "estado": "Guerrero",
+  "lat": 16.861966,
+  "lng": -99.92633
+ },
+ {
+  "codigo": "GRO-09",
+  "base": "Chilpancingo de los Bravo",
+  "tipo_base": "centro",
+  "estado": "Guerrero",
+  "lat": 17.554071,
+  "lng": -99.50476
+ },
+ {
+  "codigo": "GRO-10",
+  "base": "Chilpancingo de los Bravo",
+  "tipo_base": "centro",
+  "estado": "Guerrero",
+  "lat": 17.554071,
+  "lng": -99.50476
+ },
+ {
+  "codigo": "GRO-11",
+  "base": "Ciudad Altamirano",
+  "tipo_base": "centro",
+  "estado": "Guerrero",
+  "lat": 18.358455,
+  "lng": -100.668188
+ },
+ {
+  "codigo": "GRO-12",
+  "base": "Iguala de la Independencia",
+  "tipo_base": "centro",
+  "estado": "Guerrero",
+  "lat": 18.34699,
+  "lng": -99.537579
+ },
+ {
+  "codigo": "GRO-13",
+  "base": "Ometepec",
+  "tipo_base": "centro",
+  "estado": "Guerrero",
+  "lat": 16.685992,
+  "lng": -98.404474
+ },
+ {
+  "codigo": "GRO-14",
+  "base": "Taxco de Alarcón",
+  "tipo_base": "centro",
+  "estado": "Guerrero",
+  "lat": 18.55652,
+  "lng": -99.605106
+ },
+ {
+  "codigo": "GRO-15",
+  "base": "Tecpan de Galeana",
+  "tipo_base": "centro",
+  "estado": "Guerrero",
+  "lat": 17.21713,
+  "lng": -100.630179
+ },
+ {
+  "codigo": "GRO-16",
+  "base": "Tlapa de Comonfort",
+  "tipo_base": "centro",
+  "estado": "Guerrero",
+  "lat": 17.543316,
+  "lng": -98.578576
+ },
+ {
+  "codigo": "GRO-17",
+  "base": "Zihuatanejo",
+  "tipo_base": "centro",
+  "estado": "Guerrero",
+  "lat": 17.646892,
+  "lng": -101.552067
+ },
+ {
+  "codigo": "GRO-18",
+  "base": "Zihuatanejo · Aeropuerto",
+  "tipo_base": "aeropuerto",
+  "estado": "Guerrero",
+  "lat": 17.60619,
+  "lng": -101.462035
+ }
+]

@@ -92,7 +92,7 @@ tools/
   "sensor_id": "CAM-01-ACCESO-PRINCIPAL",
   "tipo_evento": "INTRUSION_PERIMETRO",
   "severidad": "ALTA",
-  "coordenadas": {"lat": 20.9673, "lng": -89.6242},
+  "coordenadas": {"lat": 17.987172, "lng": -92.919115},
   "timestamp": "2026-10-06T10:45:00Z",
   "evidencia_url": "/static/capturas/evento_1042.jpg",
   "ubicacion": "Parque de Santa Lucía",

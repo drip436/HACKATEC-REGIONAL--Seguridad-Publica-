@@ -34,7 +34,7 @@ config = rx.Config(
         rx.plugins.SitemapPlugin(),
         rx.plugins.TailwindV4Plugin(),
         rx.plugins.RadixThemesPlugin(
-            theme=rx.theme(appearance="dark", accent_color="sky", gray_color="slate", radius="large"),
+            theme=rx.theme(appearance="light", accent_color="teal", gray_color="gray", radius="medium", scaling="100%"),
         ),
     ],
 )

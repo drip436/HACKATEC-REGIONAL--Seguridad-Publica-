@@ -12,8 +12,8 @@ IdOperador = Annotated[str, Field(pattern=r"^[A-Za-z0-9._@-]{3,64}$", examples=[
 class Coordenadas(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    lat: float = Field(ge=-90, le=90, examples=[20.9673])
-    lng: float = Field(ge=-180, le=180, examples=[-89.6242])
+    lat: float = Field(ge=-90, le=90, examples=[17.987172])
+    lng: float = Field(ge=-180, le=180, examples=[-92.919115])
 
 
 class ErrorDetalle(BaseModel):
@@ -48,3 +48,21 @@ RESPUESTAS_ERROR: dict[int | str, dict[str, Any]] = {
     409: {"model": ErrorRespuesta, "description": "Conflicto de estado"},
     422: {"model": ErrorRespuesta, "description": "Validación fallida"},
 }
+
+
+class LugarOut(BaseModel):
+    """Resultado de buscar una dirección (geocodificación)."""
+
+    nombre: str
+    lat: float
+    lng: float
+    fuente: str  # google | openstreetmap
+
+
+class UbicacionAutoOut(BaseModel):
+    """Ubicación obtenida sin intervención: GPS de la cámara o Wi-Fi + Google."""
+
+    lat: float
+    lng: float
+    precision_m: float
+    fuente: Literal["gps_camara", "wifi_google"]

@@ -17,7 +17,7 @@ class VinculacionIn(BaseModel):
         examples=["http://192.168.1.50:8080/video"],
     )
     demo: bool = Field(default=False, description="Usa el video de demostración en lugar de una cámara.")
-    nombre: str = Field(min_length=3, max_length=120, examples=["Parque de Santa Lucía"])
+    nombre: str = Field(min_length=3, max_length=120, examples=["Plaza de Armas, Villahermosa"])
     lat: float = Field(ge=-90, le=90)
     lng: float = Field(ge=-180, le=180)
 

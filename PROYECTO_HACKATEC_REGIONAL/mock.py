@@ -10,37 +10,42 @@ from datetime import datetime, timedelta
 
 from .modelos import Camara, EventoHistorico
 
-# Dispersión de los eventos alrededor de su cámara (~130 m).
-_DISPERSION = 0.0012
+# Las alertas en vivo caen exactamente en la coordenada de su cámara. Solo el
+# histórico se reparte (~400 m) para que el mapa de calor tenga forma.
+_DISPERSION_HISTORICO = 0.004
 
 
 def _cam(id_: str, nombre: str, lat: float, lng: float, activa: bool = True) -> Camara:
     return {"id": id_, "nombre": nombre, "lat": lat, "lng": lng, "activa": activa}
 
 
-# Cámaras de DEMOSTRACIÓN en espacios públicos de Mérida (ubicaciones aproximadas).
-# Las alertas que el simulador genera aquí son sintéticas: no son datos
-# oficiales de incidencia delictiva de esas zonas.
+# Cámaras de DEMOSTRACIÓN en espacios públicos de Tabasco (coordenadas de
+# OpenStreetMap). Las alertas que el simulador genera aquí son sintéticas: no son
+# datos oficiales de incidencia delictiva de esas zonas.
 CAMARAS: list[Camara] = [
-    _cam("CAM-MID-PLAZA-GRANDE", "Plaza Grande (Centro)", 20.96706, -89.62373),
-    _cam("CAM-MID-SANTA-LUCIA", "Parque de Santa Lucía", 20.97055, -89.62186),
-    _cam("CAM-MID-MERCADO", "Mercado Lucas de Gálvez", 20.96171, -89.62196),
-    _cam("CAM-MID-LA-PLANCHA", "Gran Parque La Plancha", 20.97440, -89.61760),
-    _cam("CAM-MID-CAME", "Terminal CAME", 20.96560, -89.62930, activa=False),
-    _cam("CAM-MID-MONTEJO", "Monumento a la Patria (Paseo de Montejo)", 20.98977, -89.61695),
+    _cam("CAM-VHS-PLAZA-ARMAS", "Plaza de Armas, Villahermosa", 17.987172, -92.919115),
+    _cam("CAM-VHS-LA-CHOCA", "Parque La Choca, Villahermosa", 18.004057, -92.952883),
+    _cam("CAM-VHS-TAMULTE", "Tamulté de las Barrancas, Villahermosa", 17.970279, -92.958208),
+    _cam("CAM-VHS-ATASTA", "Atasta, Villahermosa", 17.979867, -92.950540),
+    _cam("CAM-VHS-CD-INDUSTRIAL", "Ciudad Industrial, Villahermosa", 18.025609, -92.901099, activa=False),
+    _cam("CAM-CAR-CENTRO", "Centro de Cárdenas", 18.169370, -93.705229),
+    _cam("CAM-COM-CENTRO", "Centro de Comalcalco", 18.261508, -93.223152),
 ]
 CODIGOS_DEMO = frozenset(c["id"] for c in CAMARAS)
 
 # Peso relativo de cada cámara y de cada hora: sesga el histórico para que
 # existan franjas y zonas críticas reconocibles.
-_PESO_CAMARA = [1, 2, 1, 3, 1, 4]
+_PESO_CAMARA = [4, 2, 3, 2, 1, 2, 1]
 _PESO_HORA = [1, 1, 1, 1, 1, 1, 2, 4, 5, 3, 2, 2, 4, 5, 4, 2, 2, 4, 7, 9, 8, 5, 3, 2]
 _TIPOS = ["traspaso_perimetro", "aglomeracion", "merodeo", "objeto_abandonado"]
 _PESO_TIPO = [5, 3, 2, 1]
 
 
 def generar_evento(
-    momento: datetime | None = None, rng: random.Random | None = None, solo_activas: bool = True
+    momento: datetime | None = None,
+    rng: random.Random | None = None,
+    solo_activas: bool = True,
+    dispersion: float = 0.0,
 ) -> dict:
     """Evento pendiente con la forma interna de una alerta."""
     rng = rng or random
@@ -54,8 +59,8 @@ def generar_evento(
         "severidad": rng.choices(["baja", "media", "alta", "critica"], weights=[3, 4, 3, 1])[0],
         "confianza": round(rng.uniform(0.55, 0.97), 2),
         "timestamp": momento.astimezone().isoformat(timespec="seconds"),
-        "lat": round(camara["lat"] + rng.uniform(-_DISPERSION, _DISPERSION), 6),
-        "lng": round(camara["lng"] + rng.uniform(-_DISPERSION, _DISPERSION), 6),
+        "lat": round(camara["lat"] + rng.uniform(-dispersion, dispersion), 6),
+        "lng": round(camara["lng"] + rng.uniform(-dispersion, dispersion), 6),
         "snapshot_url": "",
         "estado": "pendiente",
     }
@@ -77,7 +82,7 @@ def eventos_historicos(dias: int = 30) -> list[dict]:
         for _ in range(int(rng.randint(10, 18) * factor_dia)):
             hora = rng.choices(range(24), weights=_PESO_HORA)[0]
             momento = dia.replace(hour=hora, minute=rng.randint(0, 59), second=rng.randint(0, 59))
-            eventos.append(generar_evento(momento, rng, solo_activas=False))
+            eventos.append(generar_evento(momento, rng, solo_activas=False, dispersion=_DISPERSION_HISTORICO))
     return eventos
 
 

@@ -2,7 +2,7 @@
 
 import reflex as rx
 
-from ...estilos import BORDE, TEXTO, TEXTO_2, TEXTO_3, tarjeta, titulo
+from ...estilos import BORDE, SUPERFICIE_2, TEXTO, TEXTO_2, TEXTO_3, tarjeta, titulo
 from ...state import State
 
 _NIVEL = {
@@ -15,7 +15,7 @@ _NIVEL = {
 def _insignia_nivel() -> rx.Component:
     return rx.match(
         State.edge_nivel,
-        *[(clave, rx.badge(texto, color_scheme=color, variant="solid")) for clave, (texto, color) in _NIVEL.items()],
+        *[(clave, rx.badge(texto, color_scheme=color, variant="soft")) for clave, (texto, color) in _NIVEL.items()],
         rx.badge("Analizando", color_scheme="gray", variant="soft"),
     )
 
@@ -32,8 +32,8 @@ def _video() -> rx.Component:
             ),
             width="100%",
             aspect_ratio="16 / 9",
-            background="#000",
-            border_radius="12px",
+            background="#111827",
+            border_radius="8px",
             overflow="hidden",
             border=BORDE,
         ),
@@ -68,9 +68,9 @@ def _aviso(icono: str, texto, detalle=None) -> rx.Component:
         ),
         width="100%",
         aspect_ratio="16 / 9",
-        background="rgba(15, 23, 42, 0.6)",
+        background=SUPERFICIE_2,
         border=BORDE,
-        border_radius="12px",
+        border_radius="8px",
         padding="1rem",
     )
 
@@ -111,6 +111,73 @@ def _campo(etiqueta: str, control: rx.Component, ayuda: str = "") -> rx.Componen
     )
 
 
+def _mapa_punto() -> rx.Component:
+    from .mapa import mapa_elegir_punto  # import tardío: mapa importa el estado completo
+
+    return mapa_elegir_punto()
+
+
+def _estado_ubicacion() -> rx.Component:
+    """Qué tan confiable es la coordenada: el punto rojo caerá exactamente ahí."""
+    return rx.match(
+        State.ubicacion_estado,
+        ("buscando", rx.text("Ubicando la cámara (GPS del teléfono o redes Wi-Fi cercanas)…", size="1", color=TEXTO_3)),
+        (
+            "auto_gps",
+            rx.text("Ubicación del GPS del teléfono-cámara (±", State.ubicacion_precision_m, " m).", size="1", color=TEXTO_2),
+        ),
+        (
+            "auto_wifi",
+            rx.text(
+                "Ubicada por las redes Wi-Fi cercanas con Google (±", State.ubicacion_precision_m,
+                " m). Revisa en el mapa que el punto esté sobre el lugar de la cámara.",
+                size="1",
+                color=TEXTO_2,
+            ),
+        ),
+        (
+            "lista",
+            rx.text("Ubicación del dispositivo (precisión ±", State.ubicacion_precision_m, " m).", size="1", color=TEXTO_2),
+        ),
+        (
+            "aproximada",
+            rx.text(
+                "Ubicación aproximada (±", State.ubicacion_precision_m, " m). Si la cámara está en otro punto, "
+                "corrige latitud y longitud.",
+                size="1",
+                color="#a16207",
+            ),
+        ),
+        (
+            "elegida",
+            rx.text("Ubicación elegida. Revisa en el mapa que el punto esté sobre el lugar correcto.", size="1", color=TEXTO_2),
+        ),
+        (
+            "por_ip",
+            rx.text(
+                "No se pudo ubicar automáticamente (", State.ubicacion_motivo, "). Busca la dirección, "
+                "pega un enlace de Google Maps o haz clic en el mapa.",
+                size="1",
+                color="#a16207",
+            ),
+        ),
+        (
+            "denegada",
+            rx.text(
+                "El navegador no compartió la ubicación. Busca la dirección o haz clic en el mapa.",
+                size="1",
+                color="#a16207",
+            ),
+        ),
+        rx.text(
+            "Busca la dirección o pega un enlace de Google Maps. En el mapa, cada clic acerca la vista; "
+            "ya de cerca, el clic marca el punto exacto de la cámara.",
+            size="1",
+            color=TEXTO_3,
+        ),
+    )
+
+
 def dialogo_vincular() -> rx.Component:
     return rx.dialog.root(
         rx.dialog.content(
@@ -135,6 +202,7 @@ def dialogo_vincular() -> rx.Component:
                         rx.input(
                             value=State.form_url,
                             on_change=State.set_form_url,
+                            on_blur=State.url_lista,
                             placeholder="http://192.168.1.50:8080/video",
                             width="100%",
                         ),
@@ -145,27 +213,67 @@ def dialogo_vincular() -> rx.Component:
                     rx.input(
                         value=State.form_nombre,
                         on_change=State.set_form_nombre,
-                        placeholder="Parque de Santa Lucía",
+                        placeholder="Plaza de Armas, Villahermosa",
                         width="100%",
                     ),
                 ),
                 _campo(
-                    "Ubicación en el mapa",
-                    rx.hstack(
-                        rx.input(value=State.form_lat, on_change=State.set_form_lat, placeholder="Latitud", flex="1"),
-                        rx.input(value=State.form_lng, on_change=State.set_form_lng, placeholder="Longitud", flex="1"),
-                        rx.button(
-                            rx.icon("locate-fixed", size=16),
-                            "Mi ubicación",
-                            on_click=State.usar_mi_ubicacion,
-                            variant="soft",
-                            type="button",
+                    "Ubicación de la cámara",
+                    rx.vstack(
+                        rx.flex(
+                            rx.input(
+                                value=State.busqueda_lugar,
+                                on_change=State.set_busqueda_lugar,
+                                placeholder="Dirección, lugar o enlace de Google Maps",
+                                flex="1",
+                                min_width="200px",
+                            ),
+                            rx.button(
+                                rx.icon("search", size=16),
+                                "Buscar",
+                                on_click=State.buscar_lugar,
+                                loading=State.buscando_lugar,
+                                variant="soft",
+                                type="button",
+                            ),
+                            rx.button(
+                                rx.icon("locate-fixed", size=16),
+                                "Ubicar automáticamente",
+                                on_click=State.ubicar_automatico,
+                                loading=State.ubicacion_estado == "buscando",
+                                variant="soft",
+                                color_scheme="gray",
+                                type="button",
+                            ),
+                            width="100%",
+                            gap="0.5rem",
+                            wrap="wrap",
                         ),
-                        width="100%",
+                        rx.foreach(
+                            State.lugares,
+                            lambda lugar, i: rx.button(
+                                rx.icon("map-pin", size=14),
+                                rx.text(lugar["nombre"], size="1", trim="end", text_align="left", flex="1"),
+                                on_click=State.elegir_lugar(i),
+                                variant="ghost",
+                                color_scheme="gray",
+                                width="100%",
+                                justify="start",
+                                type="button",
+                            ),
+                        ),
+                        _mapa_punto(),
+                        rx.flex(
+                            rx.input(value=State.form_lat, on_change=State.set_form_lat, placeholder="Latitud", flex="1", min_width="120px", size="1"),
+                            rx.input(value=State.form_lng, on_change=State.set_form_lng, placeholder="Longitud", flex="1", min_width="120px", size="1"),
+                            width="100%",
+                            gap="0.5rem",
+                        ),
                         spacing="2",
+                        width="100%",
                     ),
-                    "Ahí aparecerá el punto rojo si la cámara detecta violencia.",
                 ),
+                _estado_ubicacion(),
                 rx.flex(
                     rx.dialog.close(rx.button("Cancelar", variant="soft", color_scheme="gray", flex="1")),
                     rx.button(
@@ -181,7 +289,7 @@ def dialogo_vincular() -> rx.Component:
                 spacing="4",
                 width="100%",
             ),
-            max_width="520px",
+            max_width="560px",
         ),
         open=State.dialogo_camara,
         on_open_change=State.cambiar_dialogo_camara,

@@ -36,8 +36,11 @@ _cargar_env_file()
 
 # --- Identidad del sensor --------------------------------------------------
 SENSOR_ID: str = "CAM-01-ACCESO-PRINCIPAL"
-LAT: float = 20.9673
-LNG: float = -89.6242
+# Posición de la cámara en el mapa. El panel la manda con --lat/--lng al vincular;
+# si el sensor se ejecuta a mano, se toma de SENTINELOPS_LAT/LNG (por defecto,
+# Villahermosa, Tabasco: centro de la región de demostración).
+LAT: float = float(os.getenv("SENTINELOPS_LAT", "17.987172"))
+LNG: float = float(os.getenv("SENTINELOPS_LNG", "-92.919115"))
 
 # --- Backend ---------------------------------------------------------------
 BACKEND_URL: str = os.getenv("SENTINELOPS_BACKEND_URL", "http://127.0.0.1:8000/api/v1/eventos")

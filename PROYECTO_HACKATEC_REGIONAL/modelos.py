@@ -14,6 +14,17 @@ TIPOS = {
     "merodeo": "Merodeo",
     "objeto_abandonado": "Objeto abandonado",
 }
+# Conducta reconocida por el Edge AI: cuando viene, es lo que ve el operador.
+CONDUCTAS = {
+    "asalto_con_arma": "Asalto con arma",
+    "intento_asalto": "Intento de asalto",
+    "intento_homicidio": "Intento de homicidio",
+    "agresion_fisica": "Agresión física",
+    "posible_secuestro": "Posible secuestro",
+    "persona_sometida": "Persona sometida a la fuerza",
+    "persona_sospechosa": "Persona sospechosa",
+    "vehiculo_sospechoso": "Vehículo sospechoso",
+}
 SEVERIDADES = {"baja": "Baja", "media": "Media", "alta": "Alta", "critica": "Crítica"}
 # "validado": el operador confirmó pero aún no hay despacho con acuse.
 ESTADOS = {
@@ -51,6 +62,7 @@ class Alerta(TypedDict):
     id: str
     camara_id: str
     tipo: str
+    conducta: str
     severidad: str
     confianza: float
     timestamp: str
@@ -82,6 +94,37 @@ class Atencion(TypedDict):
     llegada_real_ms: int
     por_calles: bool
     distancia_m: float
+
+
+class Unidad(TypedDict):
+    """Patrulla de la flota con su posición actual (base si está libre)."""
+
+    id: str
+    base: str
+    lat: float
+    lng: float
+    estado: str  # libre | en_camino
+    evento_id: str
+
+
+class Lugar(TypedDict):
+    """Resultado de buscar una dirección."""
+
+    nombre: str
+    lat: float
+    lng: float
+    fuente: str
+
+
+class ZonaRiesgo(TypedDict):
+    """Círculo rojo semitransparente donde se concentran los eventos."""
+
+    nombre: str
+    lat: float
+    lng: float
+    radio_m: float
+    eventos: int
+    opacidad: float
 
 
 class PuntoMapa(TypedDict):
@@ -119,6 +162,7 @@ ALERTA_VACIA: Alerta = {
     "id": "",
     "camara_id": "",
     "tipo": "",
+    "conducta": "",
     "severidad": "",
     "confianza": 0.0,
     "timestamp": "",
@@ -154,7 +198,9 @@ def con_derivados(alerta: Alerta) -> Alerta:
     """Recalcula los campos de presentación a partir de los del contrato."""
     momento = a_local(alerta["timestamp"])
     alerta["hora"] = momento.strftime("%H:%M:%S") if momento else alerta["timestamp"]
-    alerta["tipo_txt"] = TIPOS.get(alerta["tipo"], alerta["tipo"].replace("_", " ").capitalize())
+    alerta["tipo_txt"] = CONDUCTAS.get(alerta["conducta"]) or TIPOS.get(
+        alerta["tipo"], alerta["tipo"].replace("_", " ").capitalize()
+    )
     alerta["sev_txt"] = SEVERIDADES.get(alerta["severidad"], alerta["severidad"].capitalize())
     alerta["estado_txt"] = ESTADOS.get(alerta["estado"], alerta["estado"].capitalize())
     alerta["confianza_txt"] = f"{alerta['confianza']:.0%}"

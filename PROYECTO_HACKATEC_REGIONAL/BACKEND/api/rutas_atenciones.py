@@ -6,7 +6,7 @@ from fastapi import APIRouter, Path, Query, status
 from starlette.concurrency import run_in_threadpool
 
 from ..realtime import get_manager
-from ..schemas import RESPUESTAS_ERROR, AtencionIn, AtencionOut
+from ..schemas import RESPUESTAS_ERROR, AtencionIn, AtencionOut, UnidadOut
 from ..services import atenciones
 from .dependencias import IpCliente, OperadorAutenticado
 
@@ -34,3 +34,14 @@ async def listar_atenciones(limit: Annotated[int, Query(ge=1, le=500)] = 100) ->
 @router.get("/{atencion_id}", response_model=AtencionOut)
 async def obtener_atencion(atencion_id: Annotated[int, Path(gt=0)]) -> AtencionOut:
     return await run_in_threadpool(atenciones.obtener_atencion, atencion_id)
+
+
+router_unidades = APIRouter(
+    prefix="/unidades", tags=["Atención en campo"], dependencies=[OperadorAutenticado], responses=RESPUESTAS_ERROR
+)
+
+
+@router_unidades.get("", response_model=list[UnidadOut])
+async def listar_unidades() -> list[UnidadOut]:
+    """Flota de patrullas (simulada) con su posición: libres en su base o en camino a un evento."""
+    return await run_in_threadpool(atenciones.listar_unidades)

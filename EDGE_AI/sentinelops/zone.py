@@ -1,44 +1,83 @@
 """Geometría de la zona vigilada y máquina de estados de amenaza.
 
-Cinco reglas se evalúan por frame sobre el polígono calibrado:
+Las reglas buscan CONDUCTAS DELICTIVAS, no gestos sueltos. Levantar las manos,
+agacharse o estar junto a otra persona no es un delito por sí mismo; lo es la
+combinación con otra persona, un arma o el movimiento (golpes, arrastre):
 
-  1. Vehículo de espera   -> AMARILLO (vehículo >10 s dentro de la zona)
-  2. Merodeo              -> AMARILLO (persona >4 s dentro de la zona)
-  3. Ocultamiento         -> ROJO     (persona agachada dentro de la zona)
-  4. Asalto inminente     -> ROJO     (arma en el frame, o manos arriba)
-  5. Acoso físico         -> ROJO     (dos personas pegadas >4 s en la zona)
+  ROJO (crítico)
+    - Asalto con arma        arma en la mano de alguien que está frente a otra persona
+    - Intento de homicidio   golpes repetidos o arma sobre una persona en el suelo
+    - Posible secuestro      una persona arrastra/somete a otra junto a un vehículo
+    - Intento de asalto      alguien con las manos arriba y otra persona encima de él,
+                             o apuntándole con el brazo extendido
+  ROJO (alto)
+    - Agresión física        golpes repetidos (muñecas a gran velocidad) contra otra persona
+    - Persona sometida       forcejeo/arrastre sostenido sin vehículo cerca
+  AMARILLO
+    - Persona sospechosa     merodeo prolongado, ocultarse agachado, o portar un arma a solas
+    - Vehículo sospechoso    vehículo detenido mucho tiempo en la zona
+
+Todo se calcula con el esqueleto (YOLOv8-Pose) y el movimiento entre frames,
+escalado al tamaño del cuerpo: funciona igual cerca o lejos de la cámara.
 """
 
 from __future__ import annotations
 
+import math
+from collections import deque
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from enum import Enum, IntEnum
-from itertools import chain, combinations
+from itertools import combinations
 
 import cv2
 import numpy as np
 
-from .detector import Detection
+from .detector import LEFT_SHOULDER, LEFT_WRIST, RIGHT_SHOULDER, RIGHT_WRIST, Detection
 
 # --- Umbrales temporales de las reglas -------------------------------------
-PERSON_LOITER_SECONDS: float = 4.0
-VEHICLE_LOITER_SECONDS: float = 10.0
-PROXIMITY_SECONDS: float = 4.0
-# El arma (y la postura) aparecen y desaparecen entre frames; sostener el
-# ROJO unos segundos evita el parpadeo del semáforo.
-DANGER_HOLD_SECONDS: float = 2.0
+PERSON_LOITER_SECONDS: float = 20.0  # merodeo: alguien que se queda mucho tiempo
+VEHICLE_LOITER_SECONDS: float = 15.0
+# Contacto físico sostenido (forcejeo, arrastre) antes de considerarlo sometimiento.
+PROXIMITY_SECONDS: float = 1.5
+HANDS_UP_SECONDS: float = 1.0  # manos arriba sostenidas (no un saludo o estiramiento)
+HIDING_SECONDS: float = 3.0  # agachado sin interactuar con nadie
+ARMED_SECONDS: float = 0.5  # arma vista en la mano durante al menos esto
+# Un ROJO se sostiene unos segundos: las detecciones parpadean entre frames.
+DANGER_HOLD_SECONDS: float = 3.0
 # Tolerancia a huecos de detección: un objeto que se pierde menos de esto no
 # reinicia su cronómetro de permanencia.
 TRACK_GRACE_SECONDS: float = 1.0
 
-# --- Umbrales de la heurística de proximidad -------------------------------
-# Superposición mínima (intersección sobre la caja menor) para considerar
-# invasión del espacio personal.
-PROXIMITY_OVERLAP_RATIO: float = 0.40
-# O bien centroides a menos de esta fracción del ancho medio de los bboxes:
-# escala con la distancia a la cámara, al contrario que un umbral en píxeles.
+# --- Geometría (todo relativo al tamaño del cuerpo) -------------------------
+# Dos personas interactúan si sus centros están a menos de esto × su tamaño medio.
+INTERACTION_DISTANCE_FACTOR: float = 1.1
+# Contacto físico: superposición de cajas o centros muy cercanos.
+PROXIMITY_OVERLAP_RATIO: float = 0.25
 PROXIMITY_DISTANCE_FACTOR: float = 0.60
+# El arma "la porta" una persona si su centro cae en su caja ampliada este margen.
+WEAPON_REACH_FACTOR: float = 0.35
+# Brazo extendido: muñeca a ≥ esto × torso del hombro, casi a la altura del hombro.
+ARM_EXTENDED_RATIO: float = 0.85
+ARM_LEVEL_RATIO: float = 0.6
+# Golpe: una muñeca a más de esto (torsos por segundo).
+STRIKE_SPEED: float = 4.0
+STRIKES_FOR_FIGHT: int = 3
+STRIKE_WINDOW_SECONDS: float = 2.5
+# Embestida: quien ataca llegó a más de esto (alturas de cuerpo/s) en el último
+# segundo y ahora sujeta a la otra persona con el brazo estirado (medido en video
+# real: ~0.45 al lanzarse; frena justo al sujetar, por eso se usa el pico reciente).
+LUNGE_SPEED: float = 0.35
+LUNGE_WINDOW_SECONDS: float = 1.2
+LUNGE_GRAB_SECONDS: float = 0.3
+# Arrastre: el par se desplaza a más de esto (alturas de cuerpo por segundo).
+DRAG_SPEED: float = 0.6
+# Vehículo "cerca" del par: a menos de esto × la altura del cuerpo.
+VEHICLE_NEAR_FACTOR: float = 2.0
+# Persona en el suelo: caja más ancha que alta por este factor.
+LYING_ASPECT: float = 1.25
+# Ventana para medir velocidades.
+MOTION_WINDOW_SECONDS: float = 0.8
 
 # IoU mínimo para reasignar la identidad de un frame al siguiente cuando el
 # tracker de Ultralytics no entrega `track_id`.
@@ -90,14 +129,18 @@ _LEVEL_SEVERITIES: dict[ThreatLevel, str] = {
 
 
 class ThreatRule(Enum):
-    """Las cinco reglas de comportamiento, con su traducción al backend."""
+    """Conductas reconocidas, con su traducción al backend."""
 
-    VEHICLE_WAITING = "VEHICULO DE ESPERA"
-    LOITERING = "MERODEO Y RECONOCIMIENTO"
-    CROUCHING = "OCULTAMIENTO / INTRUSION TACTICA"
-    WEAPON = "ASALTO INMINENTE: ARMA"
-    HANDS_UP = "ASALTO INMINENTE: MANOS ARRIBA"
-    PROXIMITY = "ACOSO FISICO / ALTERCADO"
+    VEHICLE_WAITING = "VEHICULO SOSPECHOSO"
+    LOITERING = "PERSONA SOSPECHOSA: MERODEO"
+    HIDING = "PERSONA SOSPECHOSA: OCULTANDOSE"
+    ARMED_PERSON = "PERSONA SOSPECHOSA: PORTA ARMA"
+    FIGHT = "AGRESION FISICA"
+    SUBDUED = "PERSONA SOMETIDA A LA FUERZA"
+    ROBBERY = "INTENTO DE ASALTO"
+    KIDNAPPING = "POSIBLE SECUESTRO"
+    ARMED_ROBBERY = "ASALTO CON ARMA"
+    HOMICIDE_ATTEMPT = "INTENTO DE HOMICIDIO"
 
     @property
     def label(self) -> str:
@@ -105,61 +148,42 @@ class ThreatRule(Enum):
 
     @property
     def level(self) -> ThreatLevel:
-        return _RULE_LEVELS[self]
+        return _RULE_SPECS[self][0]
 
     @property
     def priority(self) -> int:
         """Desempata entre reglas del mismo nivel; mayor gana."""
-        return _RULE_PRIORITIES[self]
+        return _RULE_SPECS[self][1]
 
     @property
     def event_type(self) -> str:
         """Alias de `tipo_evento` admitido por el backend."""
-        return _RULE_EVENT_TYPES[self]
+        return _RULE_SPECS[self][2]
 
     @property
     def severity(self) -> str:
         """Valor admitido por `NivelPrioridad`."""
-        return _RULE_SEVERITIES[self]
+        return _RULE_SPECS[self][3]
+
+    @property
+    def conducta(self) -> str:
+        """`metadatos.conducta` del backend: lo que lee el operador."""
+        return _RULE_SPECS[self][4]
 
 
-_RULE_LEVELS: dict[ThreatRule, ThreatLevel] = {
-    ThreatRule.VEHICLE_WAITING: ThreatLevel.SUSPICIOUS,
-    ThreatRule.LOITERING: ThreatLevel.SUSPICIOUS,
-    ThreatRule.CROUCHING: ThreatLevel.DANGER,
-    ThreatRule.WEAPON: ThreatLevel.DANGER,
-    ThreatRule.HANDS_UP: ThreatLevel.DANGER,
-    ThreatRule.PROXIMITY: ThreatLevel.DANGER,
-}
-
-_RULE_PRIORITIES: dict[ThreatRule, int] = {
-    ThreatRule.WEAPON: 6,
-    ThreatRule.HANDS_UP: 5,
-    ThreatRule.CROUCHING: 4,
-    ThreatRule.PROXIMITY: 3,
-    ThreatRule.LOITERING: 2,
-    ThreatRule.VEHICLE_WAITING: 1,
-}
-
-# El catálogo del backend (ALIAS_TIPO_EVENTO) no tiene un tipo para armas ni
-# para posturas: el ROJO individual viaja como traspaso de perímetro y el
-# altercado entre personas como aglomeración.
-_RULE_EVENT_TYPES: dict[ThreatRule, str] = {
-    ThreatRule.VEHICLE_WAITING: "MERODEO",
-    ThreatRule.LOITERING: "MERODEO",
-    ThreatRule.CROUCHING: "INTRUSION_PERIMETRO",
-    ThreatRule.WEAPON: "INTRUSION_PERIMETRO",
-    ThreatRule.HANDS_UP: "INTRUSION_PERIMETRO",
-    ThreatRule.PROXIMITY: "AGLOMERACION",
-}
-
-_RULE_SEVERITIES: dict[ThreatRule, str] = {
-    ThreatRule.VEHICLE_WAITING: "MEDIA",
-    ThreatRule.LOITERING: "MEDIA",
-    ThreatRule.CROUCHING: "ALTA",
-    ThreatRule.WEAPON: "CRITICA",
-    ThreatRule.HANDS_UP: "CRITICA",
-    ThreatRule.PROXIMITY: "ALTA",
+_D, _S = ThreatLevel.DANGER, ThreatLevel.SUSPICIOUS
+# regla: (nivel, prioridad, tipo_evento, severidad, conducta)
+_RULE_SPECS: dict[ThreatRule, tuple[ThreatLevel, int, str, str, str]] = {
+    ThreatRule.VEHICLE_WAITING: (_S, 1, "MERODEO", "MEDIA", "vehiculo_sospechoso"),
+    ThreatRule.LOITERING: (_S, 2, "MERODEO", "MEDIA", "persona_sospechosa"),
+    ThreatRule.HIDING: (_S, 3, "INTRUSION_PERIMETRO", "MEDIA", "persona_sospechosa"),
+    ThreatRule.ARMED_PERSON: (_S, 4, "INTRUSION_PERIMETRO", "ALTA", "persona_sospechosa"),
+    ThreatRule.FIGHT: (_D, 5, "AGLOMERACION", "ALTA", "agresion_fisica"),
+    ThreatRule.SUBDUED: (_D, 6, "INTRUSION_PERIMETRO", "ALTA", "persona_sometida"),
+    ThreatRule.ROBBERY: (_D, 7, "INTRUSION_PERIMETRO", "CRITICA", "intento_asalto"),
+    ThreatRule.KIDNAPPING: (_D, 8, "INTRUSION_PERIMETRO", "CRITICA", "posible_secuestro"),
+    ThreatRule.ARMED_ROBBERY: (_D, 9, "INTRUSION_PERIMETRO", "CRITICA", "asalto_con_arma"),
+    ThreatRule.HOMICIDE_ATTEMPT: (_D, 10, "INTRUSION_PERIMETRO", "CRITICA", "intento_homicidio"),
 }
 
 
@@ -287,6 +311,11 @@ class ThreatAssessment:
         return primary.rule.severity if primary is not None else self.level.severity
 
     @property
+    def conducta(self) -> str | None:
+        primary = self.primary
+        return primary.rule.conducta if primary is not None else None
+
+    @property
     def trigger(self) -> Detection | None:
         """Detección que justifica la alerta, si la señal apunta a una."""
         primary = self.primary
@@ -338,7 +367,7 @@ class _DwellRegistry:
         self._clocks.clear()
 
 
-class _Latch:
+class _Latch:  # se conserva por compatibilidad con código externo
     """Sostiene una detección instantánea durante `hold_seconds`."""
 
     def __init__(self, hold_seconds: float) -> None:
@@ -417,25 +446,164 @@ class _IdentityResolver:
         self._active.clear()
 
 
-def _is_invasive(
-    first: Detection,
-    second: Detection,
-    overlap_ratio: float,
-    distance_factor: float,
-) -> bool:
-    """True si dos personas comparten un espacio críticamente corto."""
-    if first.overlap_ratio(second) >= overlap_ratio:
+
+
+# --- Geometría del cuerpo ----------------------------------------------------
+
+
+def _size(detection: Detection) -> float:
+    """Tamaño del cuerpo en píxeles (sirve también tumbado)."""
+    return float(max(detection.width, detection.height, 1))
+
+
+def _distance(a: tuple[float, float], b: tuple[float, float]) -> float:
+    return math.hypot(a[0] - b[0], a[1] - b[1])
+
+
+def _interacting(first: Detection, second: Detection, factor: float = INTERACTION_DISTANCE_FACTOR) -> bool:
+    """True si dos personas están lo bastante cerca para agredirse o someterse."""
+    scale = 0.5 * (_size(first) + _size(second))
+    return first.centroid_distance(second) <= factor * scale
+
+
+def _in_contact(first: Detection, second: Detection) -> bool:
+    """Contacto físico: cajas superpuestas o centros muy juntos."""
+    if first.overlap_ratio(second) >= PROXIMITY_OVERLAP_RATIO:
         return True
     scale = 0.5 * (first.width + second.width)
-    return scale > 0.0 and first.centroid_distance(second) <= distance_factor * scale
+    return scale > 0.0 and first.centroid_distance(second) <= PROXIMITY_DISTANCE_FACTOR * scale
+
+
+def _is_lying(person: Detection) -> bool:
+    """En el suelo: la caja es claramente más ancha que alta."""
+    return person.height > 0 and person.width >= LYING_ASPECT * person.height
+
+
+def _is_down(person: Detection) -> bool:
+    """Indefenso: en el suelo o agachado/encogido."""
+    return _is_lying(person) or person.is_crouching
+
+
+def _torso(person: Detection) -> float:
+    pose = person.pose
+    torso = pose.torso_height if pose is not None else None
+    return float(torso) if torso else 0.3 * _size(person)
+
+
+def _arm_extended_toward(person: Detection, target: Detection) -> bool:
+    """Brazo estirado a la altura del hombro y en dirección a `target` (apuntar, encañonar, jalar)."""
+    pose = person.pose
+    if pose is None:
+        return False
+    torso = _torso(person)
+    side = target.center[0] - person.center[0]
+    for shoulder_idx, wrist_idx in ((LEFT_SHOULDER, LEFT_WRIST), (RIGHT_SHOULDER, RIGHT_WRIST)):
+        shoulder, wrist = pose.get(shoulder_idx), pose.get(wrist_idx)
+        if shoulder is None or wrist is None:
+            continue
+        reach = _distance((shoulder.x, shoulder.y), (wrist.x, wrist.y))
+        level = abs(wrist.y - shoulder.y) <= ARM_LEVEL_RATIO * torso
+        toward = (wrist.x - shoulder.x) * side > 0
+        if reach >= ARM_EXTENDED_RATIO * torso and level and toward:
+            return True
+    return False
+
+
+def _carries(person: Detection, weapon: Detection) -> bool:
+    """El arma está en la mano/cuerpo de la persona (caja ampliada un margen)."""
+    x1, y1, x2, y2 = person.bbox
+    margin_x, margin_y = WEAPON_REACH_FACTOR * person.width, WEAPON_REACH_FACTOR * person.height
+    cx, cy = weapon.center
+    return x1 - margin_x <= cx <= x2 + margin_x and y1 - margin_y <= cy <= y2 + margin_y
+
+
+# --- Movimiento entre frames ------------------------------------------------
+
+
+@dataclass(slots=True)
+class _Sample:
+    t: float
+    center: tuple[float, float]
+    size: float
+    torso: float
+    wrists: tuple[tuple[float, float] | None, tuple[float, float] | None]
+
+
+class _MotionTracker:
+    """Historial corto por persona: velocidad del cuerpo y golpes (muñecas rápidas)."""
+
+    def __init__(self, window: float = MOTION_WINDOW_SECONDS, grace: float = TRACK_GRACE_SECONDS) -> None:
+        self._window = window
+        self._grace = grace
+        self._samples: dict[str, deque[_Sample]] = {}
+        self._strikes: dict[str, deque[float]] = {}
+        self._speeds: dict[str, deque[tuple[float, float]]] = {}
+
+    def update(self, key: str, person: Detection, now: float) -> None:
+        wrists: list[tuple[float, float] | None] = [None, None]
+        if person.pose is not None:
+            for i, idx in enumerate((LEFT_WRIST, RIGHT_WRIST)):
+                point = person.pose.get(idx)
+                wrists[i] = (point.x, point.y) if point is not None else None
+        sample = _Sample(now, (float(person.center[0]), float(person.center[1])), _size(person), _torso(person), (wrists[0], wrists[1]))
+        history = self._samples.setdefault(key, deque())
+        previous = history[-1] if history else None
+        history.append(sample)
+        while history and now - history[0].t > max(self._window, STRIKE_WINDOW_SECONDS):
+            history.popleft()
+        if previous is not None and 0.0 < now - previous.t <= self._grace:
+            dt = now - previous.t
+            for before, after in zip(previous.wrists, sample.wrists):
+                if before is None or after is None:
+                    continue
+                # Velocidad de la muñeca RELATIVA al cuerpo: caminar rápido no es golpear.
+                rel_before = (before[0] - previous.center[0], before[1] - previous.center[1])
+                rel_after = (after[0] - sample.center[0], after[1] - sample.center[1])
+                speed = _distance(rel_before, rel_after) / dt / max(sample.torso, 1.0)
+                if speed >= STRIKE_SPEED:
+                    self._strikes.setdefault(key, deque()).append(now)
+                    break
+        strikes = self._strikes.get(key)
+        while strikes and now - strikes[0] > STRIKE_WINDOW_SECONDS:
+            strikes.popleft()
+        speeds = self._speeds.setdefault(key, deque())
+        speeds.append((now, self.speed(key, now)))
+        while speeds and now - speeds[0][0] > LUNGE_WINDOW_SECONDS:
+            speeds.popleft()
+
+    def peak_speed(self, key: str) -> float:
+        """Velocidad máxima reciente (alturas de cuerpo/s): detecta a quien se abalanzó."""
+        return max((v for _, v in self._speeds.get(key, ())), default=0.0)
+
+    def speed(self, key: str, now: float) -> float:
+        """Desplazamiento del cuerpo en alturas de cuerpo por segundo."""
+        history = [s for s in self._samples.get(key, ()) if now - s.t <= self._window]
+        if len(history) < 2 or history[-1].t <= history[0].t:
+            return 0.0
+        first, last = history[0], history[-1]
+        return _distance(first.center, last.center) / (last.t - first.t) / max(last.size, 1.0)
+
+    def strikes(self, key: str) -> int:
+        return len(self._strikes.get(key, ()))
+
+    def sweep(self, now: float) -> None:
+        for key in [k for k, h in self._samples.items() if not h or now - h[-1].t > self._grace]:
+            self._samples.pop(key, None)
+            self._strikes.pop(key, None)
+            self._speeds.pop(key, None)
+
+    def clear(self) -> None:
+        self._samples.clear()
+        self._strikes.clear()
+        self._speeds.clear()
 
 
 class ThreatAssessor:
     """Máquina de estados que convierte detecciones sueltas en un nivel.
 
-    Mantiene los cronómetros entre frames, así que debe existir una sola
-    instancia por cámara y recibir `now` monotónico. El tiempo es de reloj, no
-    de frames, para que el frame skipping no altere la heurística.
+    Mantiene los cronómetros y el movimiento entre frames, así que debe existir
+    una sola instancia por cámara y recibir `now` monotónico. El tiempo es de
+    reloj, no de frames, para que el frame skipping no altere la heurística.
     """
 
     def __init__(
@@ -444,10 +612,9 @@ class ThreatAssessor:
         person_loiter_seconds: float = PERSON_LOITER_SECONDS,
         vehicle_loiter_seconds: float = VEHICLE_LOITER_SECONDS,
         proximity_seconds: float = PROXIMITY_SECONDS,
-        proximity_overlap_ratio: float = PROXIMITY_OVERLAP_RATIO,
-        proximity_distance_factor: float = PROXIMITY_DISTANCE_FACTOR,
         danger_hold_seconds: float = DANGER_HOLD_SECONDS,
         track_grace_seconds: float = TRACK_GRACE_SECONDS,
+        **_legacy: float,
     ) -> None:
         for name, value in (
             ("person_loiter_seconds", person_loiter_seconds),
@@ -463,17 +630,20 @@ class ThreatAssessor:
         self._person_seconds = person_loiter_seconds
         self._vehicle_seconds = vehicle_loiter_seconds
         self._proximity_seconds = proximity_seconds
-        self._proximity_overlap = proximity_overlap_ratio
-        self._proximity_distance = proximity_distance_factor
+        self._hold = danger_hold_seconds
 
         self._person_ids = _IdentityResolver("person", IDENTITY_MIN_IOU, track_grace_seconds)
         self._vehicle_ids = _IdentityResolver("vehicle", IDENTITY_MIN_IOU, track_grace_seconds)
         self._person_dwell = _DwellRegistry(track_grace_seconds)
         self._vehicle_dwell = _DwellRegistry(track_grace_seconds)
-        self._pair_dwell = _DwellRegistry(track_grace_seconds)
-        self._weapon_latch = _Latch(danger_hold_seconds)
-        self._crouch_latch = _Latch(danger_hold_seconds)
-        self._hands_up_latch = _Latch(danger_hold_seconds)
+        self._contact_dwell = _DwellRegistry(track_grace_seconds)
+        self._hands_dwell = _DwellRegistry(track_grace_seconds)
+        self._hiding_dwell = _DwellRegistry(track_grace_seconds)
+        self._armed_dwell = _DwellRegistry(track_grace_seconds)
+        self._grab_dwell = _DwellRegistry(track_grace_seconds)
+        self._motion = _MotionTracker(grace=track_grace_seconds)
+        # Último disparo de cada regla grave: se sostiene `danger_hold_seconds`.
+        self._held: dict[ThreatRule, tuple[ThreatSignal, float]] = {}
 
     @property
     def zone(self) -> RestrictedZone:
@@ -493,15 +663,27 @@ class ThreatAssessor:
 
     def reset(self) -> None:
         """Olvida el histórico (cambio de zona, reconexión de cámara)."""
-        for registry in (self._person_dwell, self._vehicle_dwell, self._pair_dwell):
+        for registry in self._registries():
             registry.clear()
         for resolver in (self._person_ids, self._vehicle_ids):
             resolver.clear()
-        for latch in (self._weapon_latch, self._crouch_latch, self._hands_up_latch):
-            latch.clear()
+        self._motion.clear()
+        self._held.clear()
+
+    def _registries(self) -> tuple[_DwellRegistry, ...]:
+        return (self._person_dwell, self._vehicle_dwell, self._contact_dwell,
+                self._hands_dwell, self._hiding_dwell, self._armed_dwell, self._grab_dwell)
+
+    def _lunged(self, k1: str, p1: Detection, k2: str, p2: Detection, now: float) -> bool:
+        """`p1` se abalanzó sobre `p2` y lo sujeta con el brazo estirado."""
+        if not (_in_contact(p1, p2) and _arm_extended_toward(p1, p2)):
+            return False
+        grab = self._grab_dwell.tick(f"{k1}>{k2}", now)
+        peak, other = self._motion.peak_speed(k1), self._motion.peak_speed(k2)
+        return grab >= LUNGE_GRAB_SECONDS and peak >= LUNGE_SPEED and peak > 2.0 * other
 
     def assess(self, detections: Iterable[Detection], now: float) -> ThreatAssessment:
-        """Clasifica la escena en VERDE / AMARILLO / ROJO según las 5 reglas."""
+        """Clasifica la escena en VERDE / AMARILLO / ROJO según las conductas."""
         people_inside: list[Detection] = []
         people_outside: list[Detection] = []
         vehicles_inside: list[Detection] = []
@@ -512,102 +694,118 @@ class ThreatAssessor:
             if detection.is_weapon:
                 weapons.append(detection)
             elif detection.is_person:
-                target = (
-                    people_inside
-                    if self._zone.contains(detection.foot_point)
-                    else people_outside
-                )
-                target.append(detection)
+                inside = self._zone.contains(detection.foot_point)
+                (people_inside if inside else people_outside).append(detection)
             elif detection.is_vehicle:
-                target = (
-                    vehicles_inside
-                    if self._zone.contains(detection.center)
-                    else vehicles_outside
-                )
-                target.append(detection)
+                inside = self._zone.contains(detection.center)
+                (vehicles_inside if inside else vehicles_outside).append(detection)
+
+        # Las conductas entre personas no respetan el borde del polígono.
+        people = self._person_ids.resolve([*people_inside, *people_outside], now)
+        inside_ids = {id(p) for p in people_inside}
+        vehicle_keys = self._vehicle_ids.resolve(vehicles_inside, now)
+        vehicles = [*vehicles_inside, *vehicles_outside]
+        for key, person in people.items():
+            self._motion.update(key, person, now)
 
         signals: list[ThreatSignal] = []
-        person_keys = self._person_ids.resolve(people_inside, now)
-        vehicle_keys = self._vehicle_ids.resolve(vehicles_inside, now)
+        busy: set[str] = set()  # personas ya involucradas en una conducta grave
 
-        # --- Regla 1: vehículo de espera ---------------------------------
+        # --- Armas en la mano --------------------------------------------
+        carriers: dict[str, Detection] = {}
+        for key, person in people.items():
+            weapon = next((w for w in weapons if _carries(person, w)), None)
+            if weapon is not None and self._armed_dwell.tick(key, now) >= ARMED_SECONDS:
+                carriers[key] = weapon
+
+        pairs = [
+            ((ka, a), (kb, b))
+            for (ka, a), (kb, b) in combinations(people.items(), 2)
+            if _interacting(a, b)
+        ]
+        for (key_a, a), (key_b, b) in pairs:
+            for (k1, p1), (k2, p2) in (((key_a, a), (key_b, b)), ((key_b, b), (key_a, a))):
+                weapon = carriers.get(k1)
+                striking = self._motion.strikes(k1) >= STRIKES_FOR_FIGHT
+                # 1. Intento de homicidio: golpes o arma contra alguien en el suelo,
+                #    o arma + golpes (apuñalar).
+                if (_is_down(p2) and (striking or weapon is not None)) or (weapon is not None and striking):
+                    signals.append(ThreatSignal(ThreatRule.HOMICIDE_ATTEMPT, p1, p2))
+                    busy.update((k1, k2))
+                # 2. Asalto con arma: arma en la mano frente a otra persona.
+                elif weapon is not None:
+                    signals.append(ThreatSignal(ThreatRule.ARMED_ROBBERY, p1, p2))
+                    busy.update((k1, k2))
+                # 3. Agresión física: golpes repetidos, o embestida (se lanza con el
+                #    brazo estirado hasta sujetar a la otra persona).
+                elif striking or self._lunged(k1, p1, k2, p2, now):
+                    signals.append(ThreatSignal(ThreatRule.FIGHT, p1, p2))
+                    busy.update((k1, k2))
+
+            # 4. Intento de asalto: alguien con las manos arriba (sostenidas) y otra
+            #    persona encima de él o apuntándole con el brazo.
+            for (kv, victim), (ka2, aggressor) in (((key_a, a), (key_b, b)), ((key_b, b), (key_a, a))):
+                if not victim.is_hands_up or aggressor.is_hands_up:
+                    continue  # los dos con las manos arriba: celebración, baile, etc.
+                held_up = self._hands_dwell.tick(f"{kv}>{ka2}", now)
+                threatened = _in_contact(victim, aggressor) or _arm_extended_toward(aggressor, victim)
+                if held_up >= HANDS_UP_SECONDS and threatened:
+                    signals.append(ThreatSignal(ThreatRule.ROBBERY, aggressor, victim, held_up))
+                    busy.update((kv, ka2))
+
+            # 5. Sometimiento / secuestro: contacto sostenido mientras uno jala o
+            #    arrastra al otro (brazo extendido + desplazamiento) o uno está en el suelo.
+            if _in_contact(a, b):
+                contact = self._contact_dwell.tick(f"pair:{min(key_a, key_b)}|{max(key_a, key_b)}", now)
+                moving = min(self._motion.speed(key_a, now), self._motion.speed(key_b, now)) >= DRAG_SPEED
+                pulling = _arm_extended_toward(a, b) or _arm_extended_toward(b, a)
+                forced = (moving and pulling) or (moving and (_is_down(a) or _is_down(b)))
+                if contact >= self._proximity_seconds and forced:
+                    near_vehicle = any(
+                        min(v.centroid_distance(a), v.centroid_distance(b)) <= VEHICLE_NEAR_FACTOR * max(_size(a), _size(b))
+                        for v in vehicles
+                    )
+                    rule = ThreatRule.KIDNAPPING if near_vehicle else ThreatRule.SUBDUED
+                    signals.append(ThreatSignal(rule, a, b, contact))
+                    busy.update((key_a, key_b))
+
+        # --- Conductas individuales (amarillo) ---------------------------
+        for key, person in people.items():
+            if key in busy:
+                continue
+            if key in carriers and not any(key in (ka, kb) for (ka, _), (kb, _) in pairs):
+                signals.append(ThreatSignal(ThreatRule.ARMED_PERSON, person))
+            if id(person) not in inside_ids:
+                continue
+            elapsed = self._person_dwell.tick(key, now)
+            if elapsed >= self._person_seconds:
+                signals.append(ThreatSignal(ThreatRule.LOITERING, person, None, elapsed))
+            if person.is_crouching and not _is_lying(person):
+                hidden = self._hiding_dwell.tick(key, now)
+                if hidden >= HIDING_SECONDS:
+                    signals.append(ThreatSignal(ThreatRule.HIDING, person, None, hidden))
+
         for key, vehicle in vehicle_keys.items():
             elapsed = self._vehicle_dwell.tick(key, now)
             if elapsed >= self._vehicle_seconds:
-                signals.append(
-                    ThreatSignal(ThreatRule.VEHICLE_WAITING, vehicle, None, elapsed)
-                )
+                signals.append(ThreatSignal(ThreatRule.VEHICLE_WAITING, vehicle, None, elapsed))
 
-        # --- Regla 2: merodeo y reconocimiento ---------------------------
-        for key, person in person_keys.items():
-            elapsed = self._person_dwell.tick(key, now)
-            if elapsed >= self._person_seconds:
-                signals.append(
-                    ThreatSignal(ThreatRule.LOITERING, person, None, elapsed)
-                )
+        # --- Sostener los ROJOS unos segundos (anti-parpadeo) --------------
+        for signal in signals:
+            if signal.level is ThreatLevel.DANGER:
+                self._held[signal.rule] = (signal, now)
+        fired = {signal.rule for signal in signals}
+        for rule, (signal, at) in list(self._held.items()):
+            if now - at > self._hold:
+                del self._held[rule]
+            elif rule not in fired:
+                signals.append(signal)
 
-        # --- Regla 3: ocultamiento / intrusión táctica -------------------
-        crouched = next(
-            (person for person in people_inside if person.is_crouching), None
-        )
-        if crouched is not None:
-            self._crouch_latch.fire(crouched, now)
-        held_crouch = self._crouch_latch.active(now)
-        if held_crouch is not None:
-            signals.append(ThreatSignal(ThreatRule.CROUCHING, held_crouch))
-
-        # --- Regla 4: asalto inminente (arma o manos arriba) -------------
-        # Sin restricción de zona: un asalto justo en el borde del polígono
-        # es igual de urgente que uno dentro.
-        if weapons:
-            self._weapon_latch.fire(
-                max(weapons, key=lambda detection: detection.confidence), now
-            )
-        held_weapon = self._weapon_latch.active(now)
-        if held_weapon is not None:
-            signals.append(ThreatSignal(ThreatRule.WEAPON, held_weapon))
-
-        hands_up = next(
-            (
-                person
-                for person in chain(people_inside, people_outside)
-                if person.is_hands_up
-            ),
-            None,
-        )
-        if hands_up is not None:
-            self._hands_up_latch.fire(hands_up, now)
-        held_hands_up = self._hands_up_latch.active(now)
-        if held_hands_up is not None:
-            signals.append(ThreatSignal(ThreatRule.HANDS_UP, held_hands_up))
-
-        # --- Regla 5: acoso físico / altercado ---------------------------
-        for (key_a, first), (key_b, second) in combinations(person_keys.items(), 2):
-            if not _is_invasive(
-                first, second, self._proximity_overlap, self._proximity_distance
-            ):
-                continue
-            pair_key = f"pair:{min(key_a, key_b)}|{max(key_a, key_b)}"
-            elapsed = self._pair_dwell.tick(pair_key, now)
-            if elapsed >= self._proximity_seconds:
-                signals.append(
-                    ThreatSignal(ThreatRule.PROXIMITY, first, second, elapsed)
-                )
-
-        for registry in (self._person_dwell, self._vehicle_dwell, self._pair_dwell):
+        for registry in self._registries():
             registry.sweep(now)
+        self._motion.sweep(now)
 
-        held_weapons: tuple[Detection, ...]
-        if weapons:
-            held_weapons = tuple(weapons)
-        elif held_weapon is not None:
-            held_weapons = (held_weapon,)
-        else:
-            held_weapons = ()
-
-        level = max(
-            (signal.level for signal in signals), default=ThreatLevel.SAFE
-        )
+        level = max((signal.level for signal in signals), default=ThreatLevel.SAFE)
         return ThreatAssessment(
             level=level,
             signals=tuple(signals),
@@ -615,5 +813,5 @@ class ThreatAssessor:
             people_outside=tuple(people_outside),
             vehicles_inside=tuple(vehicles_inside),
             vehicles_outside=tuple(vehicles_outside),
-            weapons=held_weapons,
+            weapons=tuple(weapons),
         )

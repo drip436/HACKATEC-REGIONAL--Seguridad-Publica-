@@ -19,9 +19,10 @@ from sqlmodel import col, select
 
 from ..errores import ConflictoEstado, RecursoNoEncontrado
 from ..models import AccionAuditoria, AtencionCampo, EstadoAtencion, EstadoValidacion
-from ..schemas import AtencionIn, AtencionOut, EventoOut
+from ..schemas import AtencionIn, AtencionOut, EventoOut, UnidadOut
 from ..utils.tiempo import ahora_utc
 from .auditoria import registrar
+from . import flota
 from .db import lectura, transaccion
 from .eventos import cargar_evento_con_sensor
 from .mapeo import atencion_a_dto, evento_a_dto
@@ -29,13 +30,12 @@ from .mapeo import atencion_a_dto, evento_a_dto
 LOGGER = logging.getLogger("sentinelops.atenciones")
 
 _OSRM_URL = os.getenv("SENTINEL_OSRM_URL", "https://router.project-osrm.org").rstrip("/")
-# Distancia (m) desde la que sale la unidad; la ruta real por calles suele ser mayor.
-_DISTANCIA_SALIDA_M = 1600.0
 # Velocidad de la simulación (m/s, ~6x una patrulla urbana) y sus límites de duración.
 _VELOCIDAD_DEMO = float(os.getenv("SENTINEL_VELOCIDAD_DEMO_MPS", "60"))
 _DURACION_MIN_S, _DURACION_MAX_S = 20.0, 75.0
 _MAX_PUNTOS_RUTA = 300
-_RADIO_TIERRA_M = 6_371_000.0
+# Tramo final permitido fuera de la calle (estacionamiento, plaza, patio).
+_MAX_TRAMO_A_PIE_M = 300.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -52,20 +52,30 @@ class ResultadoAtencion:
 
 
 def crear_atencion(datos: AtencionIn, *, ip_origen: str) -> ResultadoAtencion:
-    """Valida el evento (si seguía pendiente) y despacha una unidad hacia él."""
+    """Valida el evento (si seguía pendiente) y despacha la unidad libre más cercana.
+
+    El destino es exactamente la coordenada registrada del evento y el origen la
+    posición de la unidad elegida; ninguna de las dos se ajusta ni se inventa.
+    """
     with lectura() as session:
         evento, _ = cargar_evento_con_sensor(session, datos.evento_id)
         destino = (evento.latitud, evento.longitud)
         _verificar_atendible(session, evento)
+        unidad = flota.mas_cercana(session, destino)
+    if unidad is None:
+        raise ConflictoEstado("No hay unidades libres en este momento; intenta cuando alguna termine su atención.")
 
     # La ruta se pide fuera de la transacción: es una llamada de red.
-    origen = _punto_de_salida(destino, semilla=datos.evento_id)
-    ruta = calcular_ruta(origen, destino)
+    ruta = calcular_ruta((unidad.lat, unidad.lng), destino)
     duracion = min(max(ruta.distancia_m / _VELOCIDAD_DEMO, _DURACION_MIN_S), _DURACION_MAX_S)
 
     with transaccion() as session:
         evento, sensor = cargar_evento_con_sensor(session, datos.evento_id)
         _verificar_atendible(session, evento)
+        if unidad.id in flota.asignaciones(session):
+            raise ConflictoEstado(
+                f"{unidad.id} acaba de ser asignada a otro evento; vuelve a intentarlo.", detalle={"unidad": unidad.id}
+            )
         ahora = ahora_utc()
         if evento.estado_validacion == EstadoValidacion.PENDIENTE.value:
             evento.estado_validacion = EstadoValidacion.VALIDADO.value
@@ -86,7 +96,7 @@ def crear_atencion(datos: AtencionIn, *, ip_origen: str) -> ResultadoAtencion:
 
         atencion = AtencionCampo(
             evento_id=datos.evento_id,
-            unidad=f"PATRULLA-{datos.evento_id % 20 + 1:02d}",
+            unidad=unidad.id,
             solicitado_por=datos.operador_id,
             origen_lat=ruta.puntos[0][0],
             origen_lng=ruta.puntos[0][1],
@@ -111,6 +121,7 @@ def crear_atencion(datos: AtencionIn, *, ip_origen: str) -> ResultadoAtencion:
             detalle={
                 "evento_id": datos.evento_id,
                 "unidad": atencion.unidad,
+                "base": unidad.base,
                 "distancia_m": atencion.distancia_m,
                 "ruta_por_calles": ruta.por_calles,
                 "duracion_simulada_s": atencion.duracion_s,
@@ -155,6 +166,11 @@ def listar_atenciones(*, limit: int) -> list[AtencionOut]:
         return [atencion_a_dto(a) for a in filas]
 
 
+def listar_unidades() -> list[UnidadOut]:
+    with lectura() as session:
+        return flota.listar(session)
+
+
 def obtener_atencion(atencion_id: int) -> AtencionOut:
     with lectura() as session:
         atencion = session.get(AtencionCampo, atencion_id)
@@ -176,8 +192,17 @@ def calcular_ruta(origen: tuple[float, float], destino: tuple[float, float]) -> 
         mejor = datos["routes"][0]
         puntos = [[round(lat, 6), round(lng, 6)] for lng, lat in mejor["geometry"]["coordinates"]]
         if len(puntos) >= 2:
-            # Termina exactamente en el evento (OSRM ajusta el destino a la calle).
-            puntos.append([round(destino[0], 6), round(destino[1], 6)])
+            # Sale exactamente de la unidad y termina exactamente en el evento (OSRM
+            # ajusta ambos extremos a la calle más cercana). Si un extremo está lejos
+            # de toda calle (mar, laguna), no se une en línea recta: se quedaría
+            # "cruzando el agua"; la ruta termina en la calle más cercana.
+            extremos = [float(w.get("distance", 0.0)) for w in datos.get("waypoints", [])] or [0.0, 0.0]
+            if extremos[0] <= _MAX_TRAMO_A_PIE_M:
+                puntos.insert(0, [round(origen[0], 6), round(origen[1], 6)])
+            if extremos[-1] <= _MAX_TRAMO_A_PIE_M:
+                puntos.append([round(destino[0], 6), round(destino[1], 6)])
+            else:
+                LOGGER.warning("El evento está a %.0f m de la calle más cercana; la ruta termina en la calle.", extremos[-1])
             return Ruta(puntos=_reducir(puntos), distancia_m=float(mejor["distance"]), por_calles=True)
     except (httpx.HTTPError, ValueError, KeyError, IndexError, TypeError) as error:
         LOGGER.warning("OSRM no disponible (%s); la unidad irá en línea recta.", error)
@@ -186,22 +211,7 @@ def calcular_ruta(origen: tuple[float, float], destino: tuple[float, float]) -> 
         [round(origen[0] + (destino[0] - origen[0]) * i / pasos, 6), round(origen[1] + (destino[1] - origen[1]) * i / pasos, 6)]
         for i in range(pasos + 1)
     ]
-    return Ruta(puntos=puntos, distancia_m=_distancia_m(origen, destino), por_calles=False)
-
-
-def _punto_de_salida(destino: tuple[float, float], *, semilla: int) -> tuple[float, float]:
-    """Punto a `_DISTANCIA_SALIDA_M` del evento, en una dirección que varía por evento."""
-    rumbo = math.radians((semilla * 137.508) % 360)  # ángulo áureo: direcciones repartidas
-    dlat = _DISTANCIA_SALIDA_M * math.cos(rumbo) / _RADIO_TIERRA_M
-    dlng = _DISTANCIA_SALIDA_M * math.sin(rumbo) / (_RADIO_TIERRA_M * math.cos(math.radians(destino[0])))
-    return (destino[0] + math.degrees(dlat), destino[1] + math.degrees(dlng))
-
-
-def _distancia_m(a: tuple[float, float], b: tuple[float, float]) -> float:
-    lat1, lat2 = math.radians(a[0]), math.radians(b[0])
-    dlat, dlng = lat2 - lat1, math.radians(b[1] - a[1])
-    h = math.sin(dlat / 2) ** 2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlng / 2) ** 2
-    return 2 * _RADIO_TIERRA_M * math.asin(math.sqrt(h))
+    return Ruta(puntos=puntos, distancia_m=flota.distancia_m(origen, destino), por_calles=False)
 
 
 def _reducir(puntos: list[list[float]]) -> list[list[float]]:

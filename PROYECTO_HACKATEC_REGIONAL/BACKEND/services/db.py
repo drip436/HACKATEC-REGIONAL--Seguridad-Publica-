@@ -39,6 +39,7 @@ _TABLAS = (
     "despachos_interoperables",
     "atenciones_campo",
     "bitacora_auditoria",
+    "unidades_policiales",
 )
 
 _TRIGGERS_POSTGRES = (
@@ -86,6 +87,9 @@ def inicializar_bd() -> None:
         with engine.begin() as conn:
             for sql in sentencias:
                 conn.execute(sa.text(sql))
+        from .flota import sembrar_flota  # import tardío: flota depende de schemas
+
+        sembrar_flota(engine)
         if not sentencias:
             logger.warning("Motor %s sin triggers append-only; la bitácora solo queda protegida por la API.",
                            engine.dialect.name)

@@ -6,7 +6,7 @@ from ...estilos import ACENTO, TEXTO, TEXTO_2, TEXTO_3, tarjeta, titulo
 from ...modelos import TIPOS, TODOS
 from ...state import State
 
-_REJILLA = "rgba(148, 163, 184, 0.18)"
+_REJILLA = "#eef0f3"
 
 
 def filtros() -> rx.Component:
@@ -49,8 +49,8 @@ def eventos_por_hora() -> rx.Component:
                 rx.recharts.x_axis(data_key="hora", stroke=TEXTO_3, tick_line=False, axis_line=False),
                 rx.recharts.y_axis(stroke=TEXTO_3, tick_line=False, axis_line=False, allow_decimals=False, width=32),
                 rx.recharts.graphing_tooltip(
-                    cursor={"fill": "rgba(148, 163, 184, 0.12)"},
-                    content_style={"background": "#0f172a", "border": "1px solid #334155", "borderRadius": "8px"},
+                    cursor={"fill": "rgba(17, 24, 39, 0.04)"},
+                    content_style={"background": "#fff", "border": "1px solid #e5e7eb", "borderRadius": "8px"},
                     label_style={"color": TEXTO},
                     item_style={"color": TEXTO_2},
                 ),

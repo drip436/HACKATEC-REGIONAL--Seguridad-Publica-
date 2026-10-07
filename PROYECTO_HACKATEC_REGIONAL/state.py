@@ -23,6 +23,9 @@ from .modelos import (
     EntradaBitacora,
     EventoHistorico,
     PuntoMapa,
+    Lugar,
+    Unidad,
+    ZonaRiesgo,
     a_local,
     con_derivados,
     normalizar_alerta,
@@ -42,6 +45,11 @@ DECAIMIENTO_DIAS = 14
 # Severidades que se tratan como violencia: el mapa vuela al lugar al instante.
 SEVERIDADES_VIOLENCIA = ("alta", "critica")
 INTERVALO_CAMARA_S = 1.5
+# Precisión (m) a partir de la cual se avisa que la ubicación del navegador es aproximada.
+PRECISION_ACEPTABLE_M = 100
+# Más allá de esto la posición del navegador viene de la IP (una PC sin GPS) y suele
+# caer en otra ciudad: no se usa, se pide buscar la dirección o marcar en el mapa.
+PRECISION_DESCARTABLE_M = 3000
 CAMARA_SIN_DATOS_S = 10.0
 
 
@@ -112,7 +120,7 @@ class State(rx.State):
     historico: list[EventoHistorico] = []
     bitacora: list[EntradaBitacora] = []
     integridad: str = ""
-    centro: list[float] = campus.CENTRO_DEFECTO
+    centro: list[float] = campus.CENTRO_REGION
     cuadrantes: list[Cuadrante] = campus.calcular_cuadrantes([])
 
     seleccion_id: str = ""
@@ -132,6 +140,8 @@ class State(rx.State):
 
     # Atención en campo: unidades enviadas y su animación en el mapa.
     atenciones: list[Atencion] = []
+    # Flota de patrullas: posición de cada unidad (las libres esperan en su base).
+    flota: list[Unidad] = []
     # [lat, lng, n]: el mapa vuela a (lat, lng) cada vez que cambia n.
     mapa_foco: list[float] = []
 
@@ -156,8 +166,15 @@ class State(rx.State):
     form_url: str = ""
     form_demo: bool = False
     form_nombre: str = ""
-    form_lat: str = str(campus.CENTRO_DEFECTO[0])
-    form_lng: str = str(campus.CENTRO_DEFECTO[1])
+    # Sin valor por defecto: la ubicación sale del GPS del navegador o la escribe el operador.
+    form_lat: str = ""
+    form_lng: str = ""
+    ubicacion_estado: str = ""  # "" | buscando | lista | aproximada | denegada
+    ubicacion_precision_m: int = 0
+    ubicacion_motivo: str = ""
+    busqueda_lugar: str = ""
+    lugares: list[Lugar] = []
+    buscando_lugar: bool = False
     vinculando: bool = False
 
     # ---- Selección y KPIs -------------------------------------------------
@@ -168,7 +185,9 @@ class State(rx.State):
     @rx.var
     def alerta_sel(self) -> Alerta:
         i = self._indice(self.seleccion_id)
-        return self.alertas[i] if i >= 0 else ALERTA_VACIA
+        # Completa con los campos por defecto: una sesión abierta antes de agregar un
+        # campo nuevo (p. ej. `conducta`) guarda alertas sin él.
+        return {**ALERTA_VACIA, **self.alertas[i]} if i >= 0 else ALERTA_VACIA
 
     @rx.var
     def alertas_pendientes(self) -> list[Alerta]:
@@ -241,7 +260,7 @@ class State(rx.State):
                         "franja": franja,
                         "eventos": conteo[(i, franja)],
                         # Secuencial de un solo tono: más eventos, más intenso.
-                        "color": f"rgba(56, 189, 248, {0.06 + 0.94 * conteo[(i, franja)] / maximo:.2f})",
+                        "color": f"rgba(15, 118, 110, {0.06 + 0.94 * conteo[(i, franja)] / maximo:.2f})",
                     }
                     for franja in franjas
                 ],
@@ -381,6 +400,8 @@ class State(rx.State):
     @rx.event
     async def iniciar(self):
         """Carga inicial (una vez por sesión) y arranque de la escucha en vivo."""
+        if any(a.keys() != ALERTA_VACIA.keys() for a in self.alertas):
+            self.alertas = [con_derivados({**ALERTA_VACIA, **a}) for a in self.alertas]
         if not self.camaras and not self.alertas:
             try:
                 self._fijar_camaras(await api_client.obtener_camaras())
@@ -388,6 +409,7 @@ class State(rx.State):
                     self._agregar_alerta(evento)
                 self._fijar_historico(await api_client.obtener_historico())
                 self.atenciones = await api_client.obtener_atenciones()
+                self.flota = await api_client.obtener_unidades()
             except api_client.ErrorAPI as error:
                 self.conexion = "Sin API"
                 yield rx.toast.error(str(error))
@@ -537,6 +559,48 @@ class State(rx.State):
         return puntos
 
     @rx.var
+    def unidades(self) -> list[Unidad]:
+        """Flota con su estado según las atenciones vigentes. La unidad en camino no
+        se dibuja en su base: la anima el mapa sobre su ruta."""
+        en_camino = {a["unidad"]: a["evento_id"] for a in self.atenciones if a["estado"] == "en_camino"}
+        return [
+            {**u, "estado": "en_camino" if u["id"] in en_camino else "libre", "evento_id": en_camino.get(u["id"], "")}
+            for u in self.flota
+        ]
+
+    @rx.var
+    def unidades_libres(self) -> int:
+        return sum(u["estado"] == "libre" for u in self.unidades)
+
+    @rx.var
+    def unidad_cercana_sel(self) -> str:
+        """Patrulla libre más cercana a la alerta seleccionada (cálculo local, sin red).
+        Es la misma regla con la que el backend elige la unidad al atender."""
+        alerta = self.alerta_sel
+        libres = [u for u in self.unidades if u["estado"] == "libre"]
+        if not alerta["id"] or not libres:
+            return ""
+        destino = (alerta["lat"], alerta["lng"])
+        cercana = min(libres, key=lambda u: campus.distancia_m((u["lat"], u["lng"]), destino))
+        km = campus.distancia_m((cercana["lat"], cercana["lng"]), destino) / 1000
+        return f"{cercana['id']} · {cercana['base']} · {km:.1f} km en línea recta"
+
+    @rx.var
+    def zonas_riesgo(self) -> list[ZonaRiesgo]:
+        """Círculos rojos donde se concentran los eventos (histórico + alertas abiertas)."""
+        puntos = [(e["lat"], e["lng"]) for _, e in self._historico_filtrado()]
+        puntos += [(a["lat"], a["lng"]) for a in self.alertas if a["estado"] != "descartado"]
+        return campus.zonas_de_riesgo(puntos, self.camaras)
+
+    @rx.var
+    def encuadre(self) -> list[list[float]]:
+        """Puntos que el mapa debe abarcar al cargar: incidentes y cámaras activas.
+        Vacío = vista regional (Tabasco y el Sureste)."""
+        puntos = [[p["lat"], p["lng"]] for p in self.puntos_mapa]
+        puntos += [[c["lat"], c["lng"]] for c in self.camaras_mapa if c["activa"]]
+        return puntos
+
+    @rx.var
     def caso_sel(self) -> str:
         return self._caso(self.seleccion_id) if self.seleccion_id else ""
 
@@ -634,6 +698,30 @@ class State(rx.State):
     @rx.event
     def abrir_dialogo_camara(self):
         self.dialogo_camara = True
+        if not self.form_lat or not self.form_lng:
+            return State.ubicar_automatico
+
+    @rx.event
+    async def ubicar_automatico(self):
+        """GPS del teléfono-cámara o, si no, Wi-Fi + Google; el navegador solo como último recurso."""
+        self.ubicacion_estado = "buscando"
+        yield
+        url = "" if self.form_demo else self.form_url.strip()
+        try:
+            u = await api_client.ubicacion_automatica(url)
+        except api_client.ErrorAPI as error:
+            self.ubicacion_motivo = str(error).removeprefix("No se pudo ubicar automáticamente: ").split(". Busca")[0]
+            yield State.usar_mi_ubicacion
+            return
+        self.form_lat, self.form_lng = f"{u['lat']:.6f}", f"{u['lng']:.6f}"
+        self.ubicacion_precision_m = round(u["precision_m"])
+        self.ubicacion_estado = "auto_gps" if u["fuente"] == "gps_camara" else "auto_wifi"
+
+    @rx.event
+    def url_lista(self, _valor: str = ""):
+        """Al terminar de escribir la URL, se reintenta con el GPS de la cámara."""
+        if self.form_url.strip() and self.ubicacion_estado not in ("auto_gps", "elegida", "buscando"):
+            return State.ubicar_automatico
 
     @rx.event
     def cambiar_dialogo_camara(self, abierto: bool):
@@ -655,34 +743,99 @@ class State(rx.State):
     @rx.event
     def set_form_lat(self, valor: str):
         self.form_lat = valor
+        self.ubicacion_estado = ""
 
     @rx.event
     def set_form_lng(self, valor: str):
         self.form_lng = valor
+        self.ubicacion_estado = ""
 
     @rx.event
     def usar_mi_ubicacion(self):
-        """Pide al navegador la ubicación actual (requiere permiso del usuario)."""
+        """Pide al navegador la posición actual con alta precisión (GPS si existe).
+        La coordenada se usa tal cual llega: no se ajusta a ninguna ciudad."""
+        self.ubicacion_estado = "buscando"
         return rx.call_script(
             "new Promise((ok) => navigator.geolocation"
             " ? navigator.geolocation.getCurrentPosition("
-            "(p) => ok([p.coords.latitude, p.coords.longitude]), () => ok(null), {timeout: 10000})"
+            "(p) => ok([p.coords.latitude, p.coords.longitude, p.coords.accuracy]), () => ok(null),"
+            " {enableHighAccuracy: true, maximumAge: 0, timeout: 12000})"
             " : ok(null))",
             callback=State.recibir_ubicacion,
         )
 
     @rx.event
     def recibir_ubicacion(self, coords: list[float] | None):
-        if not coords:
-            return rx.toast.warning("El navegador no compartió la ubicación; escríbela a mano.")
+        if not coords or len(coords) < 2:
+            self.ubicacion_estado = "denegada"
+            return
+        self.ubicacion_precision_m = round(coords[2]) if len(coords) > 2 and coords[2] else 0
+        if self.ubicacion_precision_m > PRECISION_DESCARTABLE_M:
+            self.ubicacion_estado = "por_ip"
+            return
         self.form_lat, self.form_lng = f"{coords[0]:.6f}", f"{coords[1]:.6f}"
+        self.ubicacion_estado = "lista" if 0 < self.ubicacion_precision_m <= PRECISION_ACEPTABLE_M else "aproximada"
+
+    @rx.var
+    def marcador_form(self) -> list[float]:
+        """Punto que se está eligiendo para la cámara (vacío si aún no hay)."""
+        try:
+            lat, lng = float(self.form_lat), float(self.form_lng)
+        except ValueError:
+            return []
+        return [lat, lng] if -90 <= lat <= 90 and -180 <= lng <= 180 else []
+
+    @rx.event
+    def set_busqueda_lugar(self, valor: str):
+        self.busqueda_lugar = valor
+
+    @rx.event
+    async def buscar_lugar(self):
+        consulta = self.busqueda_lugar.strip()
+        if len(consulta) < 3:
+            return
+        self.buscando_lugar = True
+        yield
+        try:
+            self.lugares = await api_client.geocodificar(consulta)
+        except api_client.ErrorAPI as error:
+            self.lugares = []
+            yield rx.toast.error(f"No se pudo buscar: {error}")
+        self.buscando_lugar = False
+        if len(self.lugares) == 1:
+            yield State.elegir_lugar(0)
+        elif not self.lugares:
+            yield rx.toast.warning("Sin resultados. Prueba con calle y ciudad, o pega un enlace de Google Maps.")
+
+    @rx.event
+    def elegir_lugar(self, indice: int):
+        if not 0 <= indice < len(self.lugares):
+            return
+        lugar = self.lugares[indice]
+        self.form_lat, self.form_lng = f"{lugar['lat']:.6f}", f"{lugar['lng']:.6f}"
+        self.ubicacion_estado = "elegida"
+        if not self.form_nombre.strip() and lugar["fuente"] != "coordenadas":
+            # Lo que escribió el operador ("Tecnológico de Villahermosa") nombra mejor el lugar
+            # que la dirección de Google ("Km. 3.5 Carretera..."); OSM sí trae el nombre primero.
+            buscado = self.busqueda_lugar.strip()
+            self.form_nombre = (buscado if lugar["fuente"] == "google" and buscado else lugar["nombre"].split(",")[0])[:120]
+        self.lugares = []
+
+    @rx.event
+    def marcar_en_mapa(self, lat: float, lng: float):
+        """Clic en el mini mapa: la cámara queda exactamente en ese punto."""
+        self.form_lat, self.form_lng = f"{lat:.6f}", f"{lng:.6f}"
+        self.ubicacion_estado = "elegida"
 
     @rx.event
     async def vincular_camara(self):
         try:
             lat, lng = float(self.form_lat), float(self.form_lng)
         except ValueError:
-            yield rx.toast.error("Latitud y longitud deben ser números.")
+            yield rx.toast.error("Falta la ubicación: usa «Mi ubicación» o escribe latitud y longitud.")
+            return
+        if not (-90 <= lat <= 90 and -180 <= lng <= 180):
+            yield rx.toast.error("Latitud o longitud fuera de rango.")
             return
         if len(self.form_nombre.strip()) < 3:
             yield rx.toast.error("Escribe el nombre del lugar que vigila la cámara.")

@@ -36,6 +36,8 @@ class AlertEvent:
     bounding_box: tuple[int, int, int, int]
     # Nombre del lugar; el backend lo usa al autorregistrar una cámara nueva.
     ubicacion: str | None = None
+    # Conducta reconocida (intento_asalto, posible_secuestro, ...): la lee el operador.
+    conducta: str | None = None
 
     def to_payload(self) -> dict[str, Any]:
         extra = {"ubicacion": self.ubicacion} if self.ubicacion else {}
@@ -51,6 +53,7 @@ class AlertEvent:
                 "clase_detectada": self.detected_class,
                 "confianza": round(self.confidence, 2),
                 "bounding_box": [int(value) for value in self.bounding_box],
+                **({"conducta": self.conducta} if self.conducta else {}),
             },
         }
 
