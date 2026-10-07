@@ -101,6 +101,33 @@ El panel carga el video desde el navegador con `SENTINEL_EDGE_URL`
 misma máquina que el sensor. Para verlo desde otra, define
 `SENTINELOPS_STREAM_HOST=0.0.0.0` **y** un token: el video muestra personas.
 
+## Cámaras de demostración (videos grabados)
+
+Para la demo, el panel puede mostrar videos propios como si fueran cámaras con la
+detección funcionando. Cada video se pasa **una vez** por el mismo pipeline del sensor
+(modelo, reglas de conducta y HUD) y se guarda ya anotado; el panel lo reproduce en
+bucle en la sección «Videos de demostración», debajo del mapa y de las cámaras reales.
+
+```bash
+# Desde EDGE_AI/, con el entorno que tiene ultralytics/torch:
+python tools/preprocesar_video.py videos/plaza.mp4 \
+    --nombre "Plaza de Armas, Villahermosa" --lat 17.9892 --lng -92.9195
+```
+
+- Deja el resultado en `static/videos/<id>.mp4` y registra la cámara en
+  `static/videos/camaras.json` (id, nombre, coordenadas y archivo). Repetir el comando
+  con el mismo nombre reemplaza el video; para quitar una cámara, borra su entrada.
+- `--id` fija el código de la cámara (por defecto `CAM-DEMO-<nombre>`). `--cada 2` o `3`
+  procesa más rápido.
+- Al terminar imprime qué niveles y conductas marcó el modelo, para saber si el video
+  sirve antes de la demo.
+- Con `ffmpeg` instalado sale un `.mp4` (H.264); sin él, un `.webm` con OpenCV.
+- `EDGE_AI/videos/` (originales) y `static/videos/` (anotados) están fuera de git:
+  cada equipo copia los suyos.
+
+Estos videos **no envían alertas** ni capturas: son solo imagen. Las alertas reales
+siguen saliendo del sensor en vivo (`python -m sentinelops` o «Vincular cámara»).
+
 ## Estructura
 
 ```

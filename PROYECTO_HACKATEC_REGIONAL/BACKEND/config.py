@@ -65,6 +65,7 @@ class Settings:
     tolerancia_reloj_segundos: int
     confiar_proxy: bool
     evidencias_dir: Path
+    videos_dir: Path
 
 
 @lru_cache(maxsize=1)
@@ -96,6 +97,8 @@ def get_settings() -> Settings:
         confiar_proxy=_env_bool("SENTINEL_CONFIAR_PROXY", False),
         # Misma carpeta donde el sensor Edge AI guarda las capturas (EDGE_AI/sentinelops/config.py).
         evidencias_dir=RAIZ_PROYECTO / os.getenv("SENTINEL_EVIDENCIAS_DIR", "static/capturas"),
+        # Videos ya anotados por el Edge AI (EDGE_AI/tools/preprocesar_video.py) y su índice.
+        videos_dir=RAIZ_PROYECTO / os.getenv("SENTINEL_VIDEOS_DIR", "static/videos"),
     )
     if settings.sensor_api_key is None or settings.operador_api_key is None:
         if produccion:

@@ -4,7 +4,7 @@ from ..FRONTEND.components.camara import camara_en_vivo
 from ..FRONTEND.components.kpis import fila_kpis
 from ..FRONTEND.components.layout import pagina
 from ..FRONTEND.components.mapa import mapa_en_vivo
-from ..FRONTEND.components.mosaico import mosaico_cctv
+from ..FRONTEND.components.mosaico import mosaico_cctv, videos_demostracion
 
 
 def operacion() -> rx.Component:
@@ -18,4 +18,5 @@ def operacion() -> rx.Component:
             width="100%",
             align_items="start",
         ),
+        videos_demostracion(),
     )

@@ -9,10 +9,22 @@ from typing import TypedDict
 
 import reflex as rx
 
+from . import api_client
+from .modelos import Camara
 from .state import SEVERIDADES_VIOLENCIA, State
 
 TILES_MOSAICO = 10
 _ORDEN_SEVERIDAD = ("critica", "alta", "media", "baja")
+
+
+class CamaraDemo(TypedDict):
+    """Cámara de demostración: un video grabado que el Edge AI ya anotó."""
+
+    id: str
+    nombre: str
+    lat: float
+    lng: float
+    video_url: str
 
 
 class Tile(TypedDict):
@@ -51,18 +63,36 @@ def _duracion(segundos: float) -> str:
 class EstadoUI(State):
     # Cámara proyectada en el reproductor principal; "" = la cámara en vivo.
     camara_sel: str = ""
+    camaras_demo: list[CamaraDemo] = []
 
     def _es_vinculada(self, camara: dict) -> bool:
         return self.cam_vinculada and (camara["id"] == "vinculada" or camara["nombre"] == self.cam_nombre)
 
+    def _camaras_panel(self) -> list[dict]:
+        """Inventario + cámara vinculada + cámaras de demostración que no están en el inventario."""
+        conocidas = {c["id"] for c in self.camaras_mapa}
+        extra = [
+            {"id": c["id"], "nombre": c["nombre"], "lat": c["lat"], "lng": c["lng"], "activa": True}
+            for c in self.camaras_demo
+            if c["id"] not in conocidas
+        ]
+        return [*self.camaras_mapa, *extra]
+
+    @rx.var
+    def camaras_panel(self) -> list[Camara]:
+        """Cámaras que dibuja el mapa en vivo."""
+        return self._camaras_panel()
+
     @rx.var
     def mosaico(self) -> list[Tile]:
-        """Diez celdas: la cámara vinculada primero, luego el inventario (activas antes).
-        La miniatura es la captura de evidencia más reciente de cada cámara."""
+        """Diez celdas de cámaras reales: la vinculada primero, luego el inventario (activas
+        antes). La miniatura es la captura de evidencia más reciente de cada cámara. Los
+        videos de demostración van aparte (`camaras_demo`)."""
         ultima: dict[str, dict] = {}
         en_alerta: set[str] = set()
         for alerta in self.alertas:  # de la más reciente a la más antigua
-            if alerta["snapshot_url"]:
+            # Una alerta descartada como falsa alarma deja de ser la imagen de su cámara.
+            if alerta["snapshot_url"] and alerta["estado"] != "descartado":
                 ultima.setdefault(alerta["camara_id"], alerta)
             if alerta["estado"] == "pendiente" and alerta["severidad"] in SEVERIDADES_VIOLENCIA:
                 en_alerta.add(alerta["camara_id"])
@@ -132,11 +162,27 @@ class EstadoUI(State):
         return next((s for s in _ORDEN_SEVERIDAD if s in presentes), "")
 
     @rx.event
+    async def cargar_camaras_demo(self):
+        """Videos de demostración publicados en el backend (ninguno si la API no responde)."""
+        try:
+            self.camaras_demo = await api_client.obtener_camaras_demo()
+        except api_client.ErrorAPI:
+            self.camaras_demo = []
+
+    @rx.event
     def proyectar(self, camara_id: str):
         """Proyecta una cámara del mosaico y centra el mapa en ella."""
         for camara in self.camaras_mapa:
             if camara_id and camara["id"] == camara_id:
                 self.camara_sel = camara_id
+                self._enfocar(camara["lat"], camara["lng"])
+                return
+
+    @rx.event
+    def ubicar_demo(self, camara_id: str):
+        """Centra el mapa en una cámara de demostración."""
+        for camara in self.camaras_demo:
+            if camara["id"] == camara_id:
                 self._enfocar(camara["lat"], camara["lng"])
                 return
 

@@ -6,6 +6,7 @@ import reflex as rx
 
 from ... import campus
 from ...estilos import ACENTO, AZUL, FONDO, ROJO, TEXTO_2, TEXTO_3, VERDE, tarjeta, titulo
+from ...estado_ui import EstadoUI
 from ...state import State
 
 _ruta = rx.asset("mapa_leaflet.jsx", shared=True)
@@ -63,9 +64,8 @@ def _mapa(**props) -> rx.Component:
     return _componente(
         centro=campus.CENTRO_REGION,
         zoom=campus.ZOOM_REGION,
-        camaras=State.camaras_mapa,
         encuadre=State.encuadre,
-        **props,
+        **{"camaras": State.camaras_mapa, **props},
     )
 
 
@@ -135,6 +135,7 @@ def mapa_en_vivo() -> rx.Component:
                 ),
             ),
             _mapa(
+                camaras=EstadoUI.camaras_panel,
                 alertas=State.puntos_mapa,
                 unidades=State.unidades,
                 zonas=State.zonas_riesgo,
