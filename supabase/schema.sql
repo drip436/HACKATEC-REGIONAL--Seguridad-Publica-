@@ -127,6 +127,31 @@ CREATE TRIGGER trg_bitacora_no_truncate
     FOR EACH STATEMENT EXECUTE FUNCTION fn_bitacora_append_only();
 
 -- -----------------------------------------------------------------------------
+-- 4b. Atención en campo: unidad (patrulla simulada) enviada al lugar del evento
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS atenciones_campo (
+    id                SERIAL PRIMARY KEY,
+    evento_id         INTEGER      NOT NULL UNIQUE REFERENCES eventos_detectados (id),
+    unidad            VARCHAR(32)  NOT NULL,
+    estado            VARCHAR(16)  NOT NULL,
+    solicitado_por    VARCHAR(64)  NOT NULL,
+    origen_lat        DOUBLE PRECISION NOT NULL,
+    origen_lng        DOUBLE PRECISION NOT NULL,
+    destino_lat       DOUBLE PRECISION NOT NULL,
+    destino_lng       DOUBLE PRECISION NOT NULL,
+    ruta              JSON         NOT NULL,  -- [[lat, lng], ...] por calles (OSRM)
+    ruta_por_calles   BOOLEAN      NOT NULL,
+    distancia_m       DOUBLE PRECISION NOT NULL,
+    duracion_s        DOUBLE PRECISION NOT NULL,
+    despachada_en     TIMESTAMPTZ  NOT NULL,
+    llegada_estimada  TIMESTAMPTZ  NOT NULL,
+    llegada_en        TIMESTAMPTZ,           -- se llena cuando la unidad llega: caso resuelto
+    CONSTRAINT ck_atenciones_campo_estado CHECK (estado IN ('en_camino', 'resuelto'))
+);
+CREATE INDEX IF NOT EXISTS ix_atenciones_campo_despachada_en    ON atenciones_campo (despachada_en);
+CREATE INDEX IF NOT EXISTS ix_atenciones_campo_llegada_estimada ON atenciones_campo (llegada_estimada);
+
+-- -----------------------------------------------------------------------------
 -- 5. Seguridad de Supabase: cerrar la API REST pública
 --
 -- Supabase publica las tablas de "public" en su API REST, accesible con la llave
@@ -137,6 +162,7 @@ CREATE TRIGGER trg_bitacora_no_truncate
 ALTER TABLE camaras_sensores         ENABLE ROW LEVEL SECURITY;
 ALTER TABLE eventos_detectados       ENABLE ROW LEVEL SECURITY;
 ALTER TABLE despachos_interoperables ENABLE ROW LEVEL SECURITY;
+ALTER TABLE atenciones_campo         ENABLE ROW LEVEL SECURITY;
 ALTER TABLE bitacora_auditoria       ENABLE ROW LEVEL SECURITY;
 
 COMMIT;

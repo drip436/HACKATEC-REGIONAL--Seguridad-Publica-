@@ -10,6 +10,7 @@ from sqlmodel import Field, SQLModel
 from ..utils.tiempo import ahora_utc
 from .enums import (
     Dependencia,
+    EstadoAtencion,
     EstadoEnvio,
     EstadoOperativo,
     EstadoValidacion,
@@ -99,6 +100,31 @@ class DespachoInteroperable(_Base, table=True):
     acuse_recibo: dict[str, Any] | None = Field(default=None, sa_column=sa.Column(sa.JSON, nullable=True))
     timestamp_despacho: datetime = Field(default_factory=ahora_utc, sa_column=_ts(index=True))
     confirmado_en: datetime | None = Field(default=None, sa_column=_ts(nullable=True))
+
+
+class AtencionCampo(_Base, table=True):
+    """Unidad (patrulla) enviada al lugar de un evento. Se resuelve al llegar."""
+
+    __tablename__ = "atenciones_campo"
+    __table_args__ = (_check_enum("estado", EstadoAtencion, "atenciones_campo"),)
+
+    # Una sola atención por evento: el reintento devuelve 409.
+    evento_id: int = Field(sa_column=sa.Column(sa.Integer, sa.ForeignKey("eventos_detectados.id"), unique=True, nullable=False))
+    unidad: str = Field(max_length=32)
+    estado: str = Field(default=EstadoAtencion.EN_CAMINO.value, max_length=16)
+    solicitado_por: str = Field(max_length=64)
+    origen_lat: float
+    origen_lng: float
+    destino_lat: float
+    destino_lng: float
+    # Trazo de la ruta por calles: [[lat, lng], ...] (OSRM, o línea recta si no hay red).
+    ruta: list[list[float]] = Field(default_factory=list, sa_column=sa.Column(sa.JSON, nullable=False))
+    ruta_por_calles: bool = Field(default=False)
+    distancia_m: float
+    duracion_s: float  # duración de la simulación (acelerada para la demo)
+    despachada_en: datetime = Field(default_factory=ahora_utc, sa_column=_ts(index=True))
+    llegada_estimada: datetime = Field(sa_column=_ts(index=True))
+    llegada_en: datetime | None = Field(default=None, sa_column=_ts(nullable=True))
 
 
 class BitacoraAuditoria(_Base, table=True):

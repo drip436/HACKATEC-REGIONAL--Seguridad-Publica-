@@ -69,6 +69,35 @@ class Alerta(TypedDict):
     confianza_txt: str
 
 
+class Atencion(TypedDict):
+    """Unidad enviada a un evento; el mapa la anima sobre `ruta` entre inicio y llegada."""
+
+    id: str
+    evento_id: str
+    unidad: str
+    estado: str  # en_camino | resuelto
+    ruta: list[list[float]]
+    inicio_ms: int
+    llegada_ms: int
+    llegada_real_ms: int
+    por_calles: bool
+    distancia_m: float
+
+
+class PuntoMapa(TypedDict):
+    """Alerta en el mapa con el estado de su caso: pendiente, en_camino o resuelto."""
+
+    id: str
+    lat: float
+    lng: float
+    severidad: str
+    tipo_txt: str
+    sev_txt: str
+    camara_id: str
+    hora: str
+    caso: str
+
+
 class EventoHistorico(TypedDict):
     timestamp: str
     tipo: str

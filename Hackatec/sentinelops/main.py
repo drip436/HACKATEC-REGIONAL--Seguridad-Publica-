@@ -27,7 +27,6 @@ from .config import Config, build_config
 from .detector import Detection, ThreatDetector
 from .evidence import EvidenceError, EvidenceStore
 from .notifier import AlertEvent, AlertNotifier
-from .stream_server import FramePublisher, StreamServer
 from .zone import (
     PERSON_LOITER_SECONDS,
     PROXIMITY_SECONDS,
@@ -49,7 +48,7 @@ _INFERENCE_EVERY = 3  # frame skipping: 1 inferencia cada N frames
 # Fuente por defecto. Acepta un índice de cámara (0, 1, …), la ruta de un
 # video o una URL de stream (la app IP Webcam publica en
 # http://<IP>:8080/video).
-DEFAULT_SOURCE: str | int = str(Path(__file__).resolve().parents[1] / "asalto.mp4")
+DEFAULT_SOURCE: str | int = "/home/jesus/code/Hackatec/asalto.mp4"
 
 # Claves de la CLI que no pertenecen a `Config` y no van a build_config.
 _NON_CONFIG_ARGS = (
@@ -59,7 +58,6 @@ _NON_CONFIG_ARGS = (
     "proximity",
     "inference_every",
     "calibrate",
-    "zona_completa",
 )
 
 
@@ -73,8 +71,6 @@ class RuntimeOptions:
     proximity_seconds: float
     inference_every: int
     calibrate: bool
-    # Todo el cuadro es la zona vigilada (cámara vinculada desde el panel, sin ratón).
-    zona_completa: bool = False
 
 
 class _ShutdownFlag:
@@ -187,24 +183,6 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--cooldown", type=float, dest="cooldown_seconds")
     parser.add_argument("--evidence-dir", type=Path, dest="evidence_dir")
     parser.add_argument("--sensor-id", dest="sensor_id")
-    parser.add_argument("--lat", type=float, dest="lat", help="Latitud de la cámara (punto en el mapa).")
-    parser.add_argument("--lng", type=float, dest="lng", help="Longitud de la cámara.")
-    parser.add_argument("--ubicacion", dest="ubicacion", help="Nombre del lugar que vigila la cámara.")
-    parser.add_argument(
-        "--zona-completa",
-        dest="zona_completa",
-        action="store_true",
-        default=None,
-        help="Todo el cuadro es la zona vigilada (sin calibrar el polígono).",
-    )
-    parser.add_argument("--stream-port", type=int, dest="stream_port", help="Puerto del video anotado (8090).")
-    parser.add_argument(
-        "--no-stream",
-        dest="stream_enabled",
-        action="store_const",
-        const=False,
-        help="No publica el video anotado para el panel.",
-    )
     parser.add_argument("--log-level", dest="log_level")
     parser.add_argument(
         "--no-calibrate",
@@ -364,31 +342,11 @@ def run(config: Config, options: RuntimeOptions) -> int:
     )
     notifier = AlertNotifier(
         url=config.backend_url,
+        api_key=config.sensor_api_key,
         timeout=config.http_timeout,
         max_retries=config.http_max_retries,
         backoff_seconds=config.http_backoff_seconds,
-        api_key=config.sensor_api_key,
     )
-    notifier.check_backend()
-
-    publisher = FramePublisher()
-    servidor: StreamServer | None = None
-    if config.stream_enabled:
-        try:
-            servidor = StreamServer(publisher, config.stream_port, config.stream_token)
-            servidor.start()
-        except OSError as error:
-            LOGGER.error("No se pudo abrir el puerto %d del video: %s", config.stream_port, error)
-    publisher.actualizar_estado(
-        en_linea=False,
-        sensor_id=config.sensor_id,
-        ubicacion=config.ubicacion,
-        lat=config.lat,
-        lng=config.lng,
-        fuente=str(options.source),
-    )
-    alertas_enviadas = 0
-    ultima_alerta: dict[str, str] | None = None
 
     camera = Camera(
         index=options.source,
@@ -400,7 +358,6 @@ def run(config: Config, options: RuntimeOptions) -> int:
     last_alert_at = -float("inf")
     last_alert_level = ThreatLevel.SAFE
     last_alert_rules: tuple[ThreatRule, ...] = ()
-    safe_since: float | None = None
     fps = 0.0
     previous_tick = time.monotonic()
     frame_counter = 0
@@ -412,11 +369,7 @@ def run(config: Config, options: RuntimeOptions) -> int:
 
             # --- Calibración: el primer frame define el polígono ---
             snapshot = camera.read()
-            if options.zona_completa:
-                alto, ancho = snapshot.shape[:2]
-                points = ((0, 0), (ancho - 1, 0), (ancho - 1, alto - 1), (0, alto - 1))
-                print("-> Zona vigilada: cuadro completo")
-            elif options.calibrate:
+            if options.calibrate:
                 points = calibrate_zone(snapshot, config.zone_polygon)
                 if points is None:
                     print("[i] Calibración cancelada; no se inicia la vigilancia.")
@@ -489,39 +442,10 @@ def run(config: Config, options: RuntimeOptions) -> int:
                     last_alert_at = now
                     last_alert_level = assessment.level
                     last_alert_rules = rules
-                    if _raise_alert(config, store, notifier, annotated, assessment):
-                        alertas_enviadas += 1
-                        ultima_alerta = {
-                            "nivel": assessment.level.name.lower(),
-                            "regla": assessment.reason,
-                            "tipo": assessment.event_type,
-                            "severidad": assessment.severity,
-                            "momento": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-                        }
+                    _raise_alert(config, store, notifier, annotated, assessment)
                 elif assessment.level is ThreatLevel.SAFE:
-                    # El incidente se "olvida" solo tras un cooldown completo en verde:
-                    # un verde de un instante (alguien sale de cuadro, el video
-                    # reinicia) no debe convertir la misma situación en alertas nuevas.
-                    if safe_since is None:
-                        safe_since = now
-                    elif now - safe_since >= config.cooldown_seconds:
-                        last_alert_level = ThreatLevel.SAFE
-                        last_alert_rules = ()
-                if assessment.level is not ThreatLevel.SAFE:
-                    safe_since = None
-
-                publisher.publicar(annotated)
-                publisher.actualizar_estado(
-                    en_linea=True,
-                    nivel=assessment.level.name.lower(),
-                    regla=assessment.reason if assessment.is_alertable else "",
-                    personas=assessment.people_total,
-                    vehiculos=assessment.vehicles_total,
-                    arma=assessment.weapon_present,
-                    fps=round(fps, 1),
-                    alertas_enviadas=alertas_enviadas,
-                    ultima_alerta=ultima_alerta,
-                )
+                    last_alert_level = ThreatLevel.SAFE
+                    last_alert_rules = ()
 
                 if config.show_preview:
                     cv2.imshow(_WINDOW_NAME, annotated)
@@ -537,10 +461,7 @@ def run(config: Config, options: RuntimeOptions) -> int:
         LOGGER.exception("Fallo no controlado en el bucle de vigilancia")
         return 1
     finally:
-        publisher.actualizar_estado(en_linea=False)
         notifier.shutdown()
-        if servidor is not None:
-            servidor.stop()
         cv2.destroyAllWindows()
 
     LOGGER.info("Vigilancia terminada")
@@ -553,17 +474,17 @@ def _raise_alert(
     notifier: AlertNotifier,
     annotated_frame: np.ndarray,
     assessment: ThreatAssessment,
-) -> bool:
+) -> None:
     """Guarda la evidencia y encola el POST con la severidad de la regla."""
     trigger: Detection | None = assessment.trigger
     if trigger is None:
-        return False
+        return
 
     try:
         evidence = store.save(annotated_frame)
     except (EvidenceError, OSError) as error:
         LOGGER.error("No se pudo guardar la evidencia: %s", error)
-        return False
+        return
 
     event = AlertEvent(
         sensor_id=config.sensor_id,
@@ -576,7 +497,6 @@ def _raise_alert(
         detected_class=trigger.backend_label,
         confidence=trigger.confidence,
         bounding_box=trigger.bbox,
-        ubicacion=config.ubicacion or None,
     )
     LOGGER.warning(
         "ALERTA %s id=%d motivo=%s clase=%s conf=%.2f bbox=%s",
@@ -588,7 +508,6 @@ def _raise_alert(
         trigger.bbox,
     )
     notifier.send_async(event)
-    return True
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -613,7 +532,6 @@ def main(argv: list[str] | None = None) -> int:
             vehicle_loiter_seconds=extra["vehicle_loiter"] or VEHICLE_LOITER_SECONDS,
             proximity_seconds=extra["proximity"] or PROXIMITY_SECONDS,
             inference_every=inference_every,
-            zona_completa=bool(extra["zona_completa"]),
             # Sin ventana no hay ratón: headless nunca calibra.
             calibrate=extra["calibrate"] is not False and config.show_preview,
         )

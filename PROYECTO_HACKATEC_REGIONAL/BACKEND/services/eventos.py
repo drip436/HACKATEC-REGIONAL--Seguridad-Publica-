@@ -61,7 +61,11 @@ def registrar_alerta(
                     f"Sensor {alerta.sensor_id} no registrado.", detalle={"sensor_id": alerta.sensor_id}
                 )
             sensor = autoregistrar(
-                session, codigo=alerta.sensor_id, coordenadas=alerta.coordenadas, ip_origen=ip_origen
+                session,
+                codigo=alerta.sensor_id,
+                coordenadas=alerta.coordenadas,
+                ip_origen=ip_origen,
+                nombre_ubicacion=alerta.ubicacion,
             )
         elif sensor.estado_operativo == EstadoOperativo.INACTIVO.value:
             raise ConflictoEstado(

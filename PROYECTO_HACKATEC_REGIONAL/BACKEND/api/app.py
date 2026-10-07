@@ -5,7 +5,9 @@ from fastapi import APIRouter, FastAPI
 from ..config import get_settings
 from ..realtime import get_manager
 from .manejadores_error import registrar_manejadores
+from .rutas_atenciones import router as atenciones_router
 from .rutas_auditoria import router as auditoria_router
+from .rutas_camaras import router as camaras_router
 from .rutas_despachos import router as despachos_router
 from .rutas_eventos import router as eventos_router
 from .rutas_evidencias import router as evidencias_router
@@ -36,6 +38,8 @@ def crear_api() -> FastAPI:
             {"name": "Interoperabilidad X-Road", "description": "Nodo federado simulado."},
             {"name": "Auditoría", "description": "Bitácora inmutable encadenada por SHA-256."},
             {"name": "Sensores", "description": "Inventario de cámaras y sensores."},
+            {"name": "Atención en campo", "description": "Unidades enviadas al lugar del evento (simulación)."},
+            {"name": "Cámara vinculada", "description": "Lanza el sensor Edge AI sobre una cámara IP."},
             {"name": "Evidencias", "description": "Fotogramas del Edge AI (requieren clave de operador)."},
             {"name": "Sistema", "description": "Salud del servicio."},
         ],
@@ -43,7 +47,16 @@ def crear_api() -> FastAPI:
     registrar_manejadores(api)
 
     v1 = APIRouter(prefix=settings.api_prefix)
-    for router in (eventos_router, despachos_router, interop_router, auditoria_router, sensores_router):
+    routers = (
+        eventos_router,
+        despachos_router,
+        interop_router,
+        auditoria_router,
+        sensores_router,
+        atenciones_router,
+        camaras_router,
+    )
+    for router in routers:
         v1.include_router(router)
 
     @v1.get("/health", tags=["Sistema"])

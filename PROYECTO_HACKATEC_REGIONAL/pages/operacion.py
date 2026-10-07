@@ -1,5 +1,6 @@
 import reflex as rx
 
+from ..FRONTEND.components.camara import camara_en_vivo
 from ..FRONTEND.components.cola import cola_operativa, panel_seleccion
 from ..FRONTEND.components.kpis import fila_kpis
 from ..FRONTEND.components.layout import pagina
@@ -11,7 +12,7 @@ def operacion() -> rx.Component:
         "/",
         fila_kpis(),
         rx.grid(
-            mapa_en_vivo(),
+            rx.vstack(mapa_en_vivo(), camara_en_vivo(), spacing="4", width="100%"),
             rx.vstack(panel_seleccion(), cola_operativa(), spacing="4", width="100%"),
             grid_template_columns=rx.breakpoints(initial="minmax(0, 1fr)", lg="minmax(0, 2fr) minmax(0, 1fr)"),
             gap="1rem",

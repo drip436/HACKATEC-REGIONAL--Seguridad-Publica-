@@ -7,6 +7,8 @@ Variables de entorno:
   SENTINEL_API_URL           Base de la API. Por defecto, el backend de Reflex,
                              donde `crear_api()` queda montada.
   SENTINEL_OPERADOR_API_KEY  La misma llave que exige el backend (X-Operador-Key).
+  SENTINEL_EDGE_URL          Video del sensor Edge AI (por defecto http://localhost:8090).
+  SENTINEL_STREAM_TOKEN      Token de ese video (?token=), si está configurado.
 """
 
 import asyncio
@@ -263,6 +265,7 @@ async def flujo_alertas() -> AsyncIterator[tuple[str, dict | str]]:
     ("estado", texto)        cambio en la conexión
     ("alerta", alerta)       evento nuevo
     ("cambio", {id, ...})    campos que cambiaron en un evento ya conocido
+    ("atencion", atencion)   una unidad salió hacia un evento o ya llegó
     """
     if MOCK:
         yield "estado", "Simulado"
@@ -284,7 +287,88 @@ async def flujo_alertas() -> AsyncIterator[tuple[str, dict | str]]:
                         yield "cambio", {"id": alerta["id"], "estado": alerta["estado"], "despacho": alerta["despacho"]}
                     elif tipo == "despacho.actualizado":
                         yield "cambio", {"id": str(data["evento_id"]), **_campos_despacho(data)}
+                    elif tipo == "atencion.actualizada":
+                        yield "atencion", _atencion(data)
         except (OSError, websockets.WebSocketException, ValueError, KeyError):
             pass
         yield "estado", "Reconectando"
         await asyncio.sleep(_REINTENTO_WS)
+
+
+# ---- Atención en campo (patrulla simulada) -----------------------------------
+
+
+def _ms(iso: str | None) -> int:
+    return int(datetime.fromisoformat(iso).timestamp() * 1000) if iso else 0
+
+
+def _atencion(dto: dict) -> dict:
+    """DTO del backend -> forma que usa el mapa para animar la unidad."""
+    return {
+        "id": str(dto["id"]),
+        "evento_id": str(dto["evento_id"]),
+        "unidad": dto["unidad"],
+        "estado": dto["estado"],
+        "ruta": [list(p) for p in dto["ruta"]],
+        "inicio_ms": _ms(dto["despachada_en"]),
+        "llegada_ms": _ms(dto["llegada_estimada"]),
+        "llegada_real_ms": _ms(dto.get("llegada_en")),
+        "por_calles": bool(dto.get("ruta_por_calles")),
+        "distancia_m": float(dto.get("distancia_m") or 0.0),
+    }
+
+
+async def atender(evento_id: str, operador: str) -> dict:
+    if MOCK:
+        raise ErrorAPI("La atención en campo necesita el backend (modo simulado activo).")
+    return _atencion(await _pedir("POST", "/atenciones", cuerpo={"evento_id": int(evento_id), "operador_id": operador}))
+
+
+async def obtener_atenciones() -> list[dict]:
+    if MOCK:
+        return []
+    return [_atencion(a) for a in await _pedir("GET", "/atenciones", params={"limit": 100})]
+
+
+# ---- Cámara vinculada (sensor Edge AI lanzado por el backend) -----------------
+
+
+async def estado_camara() -> dict:
+    if MOCK:
+        return {"vinculada": False}
+    return await _pedir("GET", "/camara-vinculada")
+
+
+async def vincular_camara(*, url: str, demo: bool, nombre: str, lat: float, lng: float) -> dict:
+    if MOCK:
+        raise ErrorAPI("Vincular una cámara necesita el backend (modo simulado activo).")
+    cuerpo = {"demo": demo, "nombre": nombre, "lat": lat, "lng": lng, "url": None if demo else url}
+    return await _pedir("POST", "/camara-vinculada", cuerpo=cuerpo)
+
+
+async def desvincular_camara() -> dict:
+    return await _pedir("DELETE", "/camara-vinculada")
+
+
+def _edge_base() -> str:
+    return os.environ.get("SENTINEL_EDGE_URL", "http://localhost:8090").rstrip("/")
+
+
+def _edge_token() -> str:
+    token = os.environ.get("SENTINEL_STREAM_TOKEN", "").strip()
+    return f"?token={token}" if token else ""
+
+
+def url_transmision() -> str:
+    """MJPEG con esqueletos y semáforo dibujados; un <img src> lo reproduce tal cual."""
+    return f"{_edge_base()}/stream.mjpg{_edge_token()}"
+
+
+async def estado_edge() -> dict | None:
+    """`/status.json` del sensor, o None si no responde."""
+    try:
+        async with httpx.AsyncClient(timeout=2.0) as cliente:
+            respuesta = await cliente.get(f"{_edge_base()}/status.json{_edge_token()}")
+        return respuesta.json() if respuesta.is_success else None
+    except (httpx.HTTPError, ValueError):
+        return None

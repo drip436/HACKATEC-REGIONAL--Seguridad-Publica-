@@ -65,6 +65,12 @@ class AlertaSensorIn(BaseModel):
         default=None, max_length=300, pattern=r"^/static/capturas/[A-Za-z0-9_.-]+\.(jpg|jpeg|png)$"
     )
     metadatos: MetadatosDeteccion
+    ubicacion: str | None = Field(
+        default=None,
+        min_length=3,
+        max_length=200,
+        description="Nombre del lugar; se usa solo al autorregistrar un sensor nuevo.",
+    )
 
     @field_validator("tipo_evento", mode="before")
     @classmethod

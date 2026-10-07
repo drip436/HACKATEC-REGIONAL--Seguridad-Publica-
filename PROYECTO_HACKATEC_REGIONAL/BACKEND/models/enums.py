@@ -71,6 +71,11 @@ class EstadoEnvio(StrEnum):
     CONFIRMADO = "confirmado"
 
 
+class EstadoAtencion(StrEnum):
+    EN_CAMINO = "en_camino"
+    RESUELTO = "resuelto"
+
+
 class AccionAuditoria(StrEnum):
     SENSOR_REGISTRADO = "sensor.registrado"
     SENSOR_ACTUALIZADO = "sensor.actualizado"
@@ -84,3 +89,7 @@ class AccionAuditoria(StrEnum):
     FEDERACION_RECIBIDA = "federacion.recibida"
     FEDERACION_RECHAZADA = "federacion.rechazada"
     AUDITORIA_CONSULTADA = "auditoria.consultada"
+    ATENCION_DESPACHADA = "atencion.unidad_despachada"
+    ATENCION_RESUELTA = "atencion.resuelta"
+    CAMARA_VINCULADA = "camara.vinculada"
+    CAMARA_DESVINCULADA = "camara.desvinculada"

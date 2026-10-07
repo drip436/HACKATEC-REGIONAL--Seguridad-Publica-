@@ -14,10 +14,6 @@ import requests
 LOGGER = logging.getLogger(__name__)
 
 _MAX_PENDING = 16
-# 4xx que sí vale la pena reintentar (timeout del servidor / rate limit). El resto
-# de 4xx (401 clave, 404 ruta, 409 sensor inactivo, 422 payload) no se corrige
-# repitiendo el mismo mensaje.
-_REINTENTABLES_4XX = {408, 429}
 
 
 @dataclass(frozen=True, slots=True)
@@ -34,13 +30,9 @@ class AlertEvent:
     detected_class: str
     confidence: float
     bounding_box: tuple[int, int, int, int]
-    # Nombre del lugar; el backend lo usa al autorregistrar una cámara nueva.
-    ubicacion: str | None = None
 
     def to_payload(self) -> dict[str, Any]:
-        extra = {"ubicacion": self.ubicacion} if self.ubicacion else {}
         return {
-            **extra,
             "sensor_id": self.sensor_id,
             "tipo_evento": self.event_type,
             "severidad": self.severity,
@@ -67,10 +59,10 @@ class AlertNotifier:
     def __init__(
         self,
         url: str,
+        api_key: str | None,
         timeout: tuple[float, float],
         max_retries: int,
         backoff_seconds: float,
-        api_key: str | None = None,
         max_workers: int = 2,
     ) -> None:
         self._url = url
@@ -81,7 +73,7 @@ class AlertNotifier:
         if api_key:
             self._session.headers["X-Sensor-Key"] = api_key
         else:
-            LOGGER.warning("Sin SENTINEL_SENSOR_API_KEY: el backend rechazará las alertas con 401.")
+            LOGGER.warning("SENTINEL_SENSOR_API_KEY no definida: el backend responderá 401")
         self._executor = ThreadPoolExecutor(
             max_workers=max_workers, thread_name_prefix="notifier"
         )
@@ -104,8 +96,6 @@ class AlertNotifier:
         self._pending.add(future)
 
     def _send(self, event: AlertEvent) -> None:
-        # El payload se arma una sola vez: los reintentos llevan el mismo hash y el
-        # backend los reconoce como el mismo evento (200 + X-Idempotent-Replay).
         payload = event.to_payload()
         for attempt in range(1, self._max_retries + 2):
             try:
@@ -113,29 +103,32 @@ class AlertNotifier:
                     self._url, json=payload, timeout=self._timeout
                 )
                 if response.ok:
-                    replay = response.headers.get("X-Idempotent-Replay") == "true"
                     LOGGER.info(
-                        "Alerta %s (%s) id=%s para %s",
-                        "ya registrada" if replay else "enviada",
+                        "Alerta enviada (%s) para %s",
                         response.status_code,
-                        _campo(response, "id"),
                         event.evidence_url,
                     )
                     return
-                if 400 <= response.status_code < 500 and response.status_code not in _REINTENTABLES_4XX:
+                if response.status_code == 422:
                     LOGGER.error(
-                        "Backend rechazó la alerta (%s): %s. No se reintenta: %s",
+                        "422: el backend rechazó el payload: %s | payload=%s",
+                        self._describe_422(response),
+                        payload,
+                    )
+                    return
+                if 400 <= response.status_code < 500:
+                    # Error del cliente (401, 404, 409...): reintentar no lo arregla.
+                    LOGGER.error(
+                        "Rechazo %s sin reintento: %s",
                         response.status_code,
-                        _motivo(response),
-                        event.evidence_url,
+                        response.text[:300],
                     )
                     return
                 LOGGER.warning(
-                    "Backend respondió %s en intento %d/%d: %s",
+                    "Backend respondió %s en intento %d/%d",
                     response.status_code,
                     attempt,
                     self._max_retries + 1,
-                    _motivo(response),
                 )
             except requests.RequestException as error:
                 LOGGER.warning(
@@ -154,40 +147,17 @@ class AlertNotifier:
             event.evidence_url,
         )
 
-    def check_backend(self) -> bool:
-        """Consulta `/health` del backend al arrancar, solo para avisar en el log."""
-        base = self._url.split("/api/", 1)[0]
+    @staticmethod
+    def _describe_422(response: requests.Response) -> str:
+        """Resume los errores de validación Pydantic del backend."""
         try:
-            response = self._session.get(f"{base}/api/v1/health", timeout=self._timeout)
-            if response.ok:
-                LOGGER.info("Backend disponible en %s", base)
-                return True
-            LOGGER.warning("El backend respondió %s en /api/v1/health", response.status_code)
-        except requests.RequestException as error:
-            LOGGER.warning("Backend no disponible (%s); las alertas se reintentarán al enviarse.", error)
-        return False
+            errores = response.json()["error"]["detalle"]["errores"]
+            return "; ".join(f"{e['campo']}: {e['mensaje']}" for e in errores)
+        except (ValueError, KeyError, TypeError):
+            return response.text[:300]
 
     def shutdown(self) -> None:
         """Espera a los envíos en vuelo y cierra la sesión HTTP."""
         self._executor.shutdown(wait=True)
         self._session.close()
         LOGGER.info("Notificador cerrado")
-
-
-def _campo(response: requests.Response, nombre: str) -> Any:
-    try:
-        return response.json().get(nombre)
-    except ValueError:
-        return None
-
-
-def _motivo(response: requests.Response) -> str:
-    """Extrae el mensaje del formato de error del backend: {"error": {codigo, mensaje, detalle}}."""
-    try:
-        error = response.json().get("error", {})
-    except ValueError:
-        return response.text[:200] or response.reason
-    errores = error.get("detalle", {}).get("errores") if isinstance(error.get("detalle"), dict) else None
-    if errores:
-        return "; ".join(f"{e.get('campo')}: {e.get('mensaje')}" for e in errores)[:300]
-    return f"{error.get('codigo', '?')}: {error.get('mensaje', '')}"

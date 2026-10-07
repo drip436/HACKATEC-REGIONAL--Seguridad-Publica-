@@ -130,7 +130,7 @@ def rondines_sugeridos() -> rx.Component:
             titulo("Rondines preventivos sugeridos"),
             rx.foreach(State.rondines, _rondin),
             rx.text(
-                "Priorización basada en histórico: frecuencia por cuadrante y franja, con mayor peso a lo reciente. "
+                "Priorización basada en histórico: frecuencia por lugar y franja, con mayor peso a lo reciente. "
                 "Es un apoyo para planear; la asignación la decide el personal.",
                 size="1",
                 color=TEXTO_3,

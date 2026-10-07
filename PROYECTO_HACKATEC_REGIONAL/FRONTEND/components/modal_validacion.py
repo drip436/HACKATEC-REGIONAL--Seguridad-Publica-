@@ -114,6 +114,68 @@ def _resuelta(alerta) -> rx.Component:
     )
 
 
+def _atencion_campo(alerta) -> rx.Component:
+    """Pendiente o atendido: atender envía una patrulla que sigue las calles hasta el lugar."""
+    return rx.cond(
+        alerta["estado"] == "descartado",
+        rx.fragment(),
+        rx.match(
+            State.caso_sel,
+            (
+                "en_camino",
+                rx.callout.root(
+                    rx.callout.icon(rx.icon("siren")),
+                    rx.callout.text("Unidad en camino: ", State.unidad_sel, ". El caso se resolverá cuando llegue."),
+                    color_scheme="blue",
+                    width="100%",
+                ),
+            ),
+            (
+                "resuelto",
+                rx.callout.root(
+                    rx.callout.icon(rx.icon("circle-check")),
+                    rx.callout.text("Caso atendido y resuelto en el lugar (", State.unidad_sel, ")."),
+                    color_scheme="green",
+                    width="100%",
+                ),
+            ),
+            rx.vstack(
+                rx.text("Atención en campo", size="2", color=TEXTO_2, weight="medium"),
+                rx.flex(
+                    rx.button(
+                        rx.icon("clock", size=16),
+                        "Marcar pendiente",
+                        on_click=State.marcar_pendiente,
+                        variant="soft",
+                        color_scheme="gray",
+                        size="3",
+                        flex="1",
+                    ),
+                    rx.button(
+                        rx.icon("siren", size=16),
+                        "Atender",
+                        on_click=State.atender,
+                        loading=State.procesando,
+                        color_scheme="blue",
+                        size="3",
+                        flex="1",
+                    ),
+                    gap="0.75rem",
+                    wrap="wrap",
+                    width="100%",
+                ),
+                rx.text(
+                    "Atender envía una patrulla por las calles hasta el lugar; el caso se cierra cuando llega.",
+                    size="1",
+                    color=TEXTO_3,
+                ),
+                spacing="2",
+                width="100%",
+            ),
+        ),
+    )
+
+
 def modal_validacion() -> rx.Component:
     from .cola import datos_alerta
 
@@ -135,6 +197,7 @@ def modal_validacion() -> rx.Component:
                 ),
                 _captura(alerta),
                 datos_alerta(alerta),
+                _atencion_campo(alerta),
                 rx.match(
                     alerta["estado"],
                     ("pendiente", _acciones()),
