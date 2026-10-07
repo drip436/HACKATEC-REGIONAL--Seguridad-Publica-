@@ -48,6 +48,9 @@ TARJETA = {
     "border": BORDE,
     "border_radius": "10px",
     "background": SUPERFICIE,
+    "position": "relative",
+    # Esquinas blancas tipo visor (assets/sentinel.css).
+    "class_name": "so-tarjeta",
 }
 
 

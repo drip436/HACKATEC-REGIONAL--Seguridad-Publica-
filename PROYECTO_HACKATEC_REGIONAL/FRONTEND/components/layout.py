@@ -2,7 +2,7 @@
 
 import reflex as rx
 
-from ...estilos import ALTO_ENCABEZADO, ACENTO, ACENTO_SUAVE, AMBAR, BORDE, FONDO, LINEA, MARCA, ROJO, SUPERFICIE, SUPERFICIE_2, TEXTO, TEXTO_2, TEXTO_3, VERDE
+from ...estilos import ALTO_ENCABEZADO, ACENTO, ACENTO_SUAVE, AMBAR, BORDE, LINEA, MARCA, ROJO, SUPERFICIE, SUPERFICIE_2, TEXTO, TEXTO_2, TEXTO_3, VERDE
 from ...state import State
 from .panel_alertas import panel_alertas
 
@@ -198,5 +198,5 @@ def pagina(activa: str, *contenido: rx.Component) -> rx.Component:
         ),
         panel_alertas(),
         min_height="100vh",
-        background=FONDO,
+        class_name="so-fondo",
     )
