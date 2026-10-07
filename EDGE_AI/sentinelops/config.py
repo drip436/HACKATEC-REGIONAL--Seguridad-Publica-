@@ -56,12 +56,21 @@ FRAME_HEIGHT: int = 720
 READ_MAX_FAILURES: int = 15
 
 # --- Inferencia ------------------------------------------------------------
-MODEL_PATH: str = "yolov8n.pt"
+# `yolov8n-pose.pt` sólo tiene la clase 0 (person): aporta el esqueleto. El
+# segundo modelo, COCO, es el que ve vehículos (2, 3) y arma blanca (43).
+POSE_MODEL_PATH: str = "yolov8n-pose.pt"
+OBJECT_MODEL_PATH: str = "yolov8n.pt"
 CONF_THRESHOLD: float = 0.45
+# yolov8n es flojo con objetos pequeños; el cuchillo necesita manga ancha.
+WEAPON_CONF_THRESHOLD: float = 0.30
+VEHICLE_CONF_THRESHOLD: float = 0.35
+# Tracker de Ultralytics: da identidad estable a los cronómetros de permanencia.
+ENABLE_TRACKING: bool = True
 PERSON_CLASS_ID: int = 0  # COCO: "person"
 DETECTED_CLASS_LABEL: str = "persona"
 
-# --- Zona restringida ------------------------------------------------------
+# --- Zona de vigilancia ----------------------------------------------------
+# Respaldo para `--no-calibrate` (o para la tecla 'd' de la calibración).
 # Puntos en píxeles del frame redimensionado (FRAME_WIDTH x FRAME_HEIGHT),
 # en orden horario. Si cambias la resolución, recalcula estos puntos.
 ZONE_POLYGON: tuple[tuple[int, int], ...] = (
@@ -107,8 +116,13 @@ class Config:
     frame_height: int = FRAME_HEIGHT
     read_max_failures: int = READ_MAX_FAILURES
 
-    model_path: str = MODEL_PATH
+    pose_model_path: str = POSE_MODEL_PATH
+    # Cadena vacía = sólo pose (sin vehículos ni armas).
+    object_model_path: str = OBJECT_MODEL_PATH
     conf_threshold: float = CONF_THRESHOLD
+    weapon_conf_threshold: float = WEAPON_CONF_THRESHOLD
+    vehicle_conf_threshold: float = VEHICLE_CONF_THRESHOLD
+    enable_tracking: bool = ENABLE_TRACKING
     person_class_id: int = PERSON_CLASS_ID
     detected_class_label: str = DETECTED_CLASS_LABEL
 
@@ -127,8 +141,13 @@ class Config:
     def __post_init__(self) -> None:
         if len(self.zone_polygon) < 3:
             raise ValueError("ZONE_POLYGON necesita al menos 3 puntos")
-        if not 0.0 < self.conf_threshold <= 1.0:
-            raise ValueError("CONF_THRESHOLD debe estar en (0, 1]")
+        for name, value in (
+            ("CONF_THRESHOLD", self.conf_threshold),
+            ("WEAPON_CONF_THRESHOLD", self.weapon_conf_threshold),
+            ("VEHICLE_CONF_THRESHOLD", self.vehicle_conf_threshold),
+        ):
+            if not 0.0 < value <= 1.0:
+                raise ValueError(f"{name} debe estar en (0, 1]")
         if self.cooldown_seconds < 0:
             raise ValueError("COOLDOWN_SECONDS no puede ser negativo")
         if self.camera_index < 0:
