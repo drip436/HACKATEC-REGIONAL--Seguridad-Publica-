@@ -107,8 +107,8 @@ def _celda_demo(camara) -> rx.Component:
             padding="4px 8px",
             background=VELO,
         ),
-        on_click=EstadoUI.ubicar_demo(camara["id"]),
-        title="Ver en el mapa",
+        on_click=EstadoUI.ampliar_demo(camara["id"]),
+        title="Ampliar video",
         position="relative",
         aspect_ratio="16 / 9",
         overflow="hidden",
@@ -117,6 +117,49 @@ def _celda_demo(camara) -> rx.Component:
         border=f"1.5px solid {LINEA}",
         cursor="pointer",
         _hover={"border_color": ACENTO},
+    )
+
+
+def _video_ampliado() -> rx.Component:
+    """Ventana con el video elegido en grande. El video solo se monta mientras está abierta."""
+    camara = EstadoUI.video_ampliado
+    return rx.dialog.root(
+        rx.dialog.content(
+            rx.vstack(
+                rx.hstack(
+                    rx.dialog.title(camara["nombre"], margin="0", size="4"),
+                    rx.dialog.close(
+                        rx.icon_button(rx.icon("x", size=16), variant="ghost", color_scheme="gray", size="1", aria_label="Cerrar video", cursor="pointer")
+                    ),
+                    justify="between",
+                    align="center",
+                    width="100%",
+                ),
+                rx.dialog.description("Video de demostración, grabado y analizado por la IA. No genera alertas.", size="1", color=TEXTO_3),
+                rx.box(
+                    rx.cond(camara["video_url"] != "", video_en_bucle(camara["video_url"], controls=True, style={"objectFit": "contain"})),
+                    width="100%",
+                    aspect_ratio="16 / 9",
+                    background=VIDEO,
+                    border_radius="8px",
+                    overflow="hidden",
+                ),
+                rx.button(
+                    rx.icon("map-pin", size=14),
+                    "Ver en el mapa",
+                    on_click=EstadoUI.ubicar_demo(camara["id"]),
+                    variant="soft",
+                    size="2",
+                    cursor="pointer",
+                ),
+                spacing="3",
+                width="100%",
+                align="start",
+            ),
+            max_width="min(1100px, 94vw)",
+        ),
+        open=EstadoUI.demo_ampliada != "",
+        on_open_change=EstadoUI.cambiar_demo_ampliada,
     )
 
 
@@ -129,7 +172,7 @@ def videos_demostracion() -> rx.Component:
             rx.vstack(
                 titulo(
                     "Videos de demostración",
-                    rx.text("Grabados y analizados por la IA; no generan alertas", size="1", color=TEXTO_3),
+                    rx.text("Grabados y analizados por la IA; no generan alertas. Clic para ampliar.", size="1", color=TEXTO_3),
                 ),
                 rx.grid(
                     rx.foreach(EstadoUI.camaras_demo, _celda_demo),
@@ -139,6 +182,7 @@ def videos_demostracion() -> rx.Component:
                 ),
                 spacing="3",
                 width="100%",
-            )
+            ),
+            _video_ampliado(),
         ),
     )
