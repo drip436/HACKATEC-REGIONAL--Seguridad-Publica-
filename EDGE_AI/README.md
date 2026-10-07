@@ -5,13 +5,22 @@ teléfono…), detecta **personas con esqueleto, vehículos y armas** con
 YOLOv8-Pose + YOLOv8 COCO y evalúa reglas de comportamiento sobre una zona de
 vigilancia:
 
-| Regla | Nivel | Se envía al backend como |
-|---|---|---|
-| Vehículo detenido en la zona | amarillo | `merodeo` (media) |
-| Persona que permanece en la zona | amarillo | `merodeo` (media) |
-| Persona agachada / ocultándose en la zona | rojo | `traspaso_perimetro` (alta) |
-| Proximidad invasiva sostenida entre personas | rojo | `aglomeracion` (alta) |
-| Arma o manos arriba | rojo | `traspaso_perimetro` (crítica) |
+| Regla | Cuándo dispara | Nivel | Se envía como |
+|---|---|---|---|
+| Vehículo de espera | vehículo parado en la zona ≥ 30 s | amarillo | `merodeo` (media) |
+| Merodeo | persona **quieta** en la zona ≥ 20 s (caminar despacio no cuenta) | amarillo | `merodeo` (media) |
+| Ocultamiento | persona que **estaba de pie** se agacha en la zona y se queda así ≥ 2 s | rojo | `traspaso_perimetro` (alta) |
+| Altercado | dos personas que **se acercaron de golpe** y siguen pegadas ≥ 6 s (3 o más juntas = grupo, no cuenta) | rojo | `aglomeracion` (alta) |
+| Manos arriba | **ambas** manos a la altura de la cara o más (muñecas sobre los hombros, codos levantados) durante ≥ 0.5 s | rojo | `traspaso_perimetro` (crítica) |
+| Arma | cuchillo (clase COCO 43) con confianza ≥ 0.30 | rojo | `traspaso_perimetro` (crítica) |
+
+Los gestos solo usan articulaciones vistas con certeza y exigen que la misma
+persona (identidad del tracker) los sostenga: un saludo o señalar (una mano),
+un parpadeo de detección o agacharse a recoger algo no llegan al umbral.
+Levantar los dos brazos a propósito durante medio segundo sí cuenta: es el
+gesto que la demo necesita reconocer. Los tiempos se ajustan con
+`--loiter-person`, `--loiter-vehicle`, `--proximity`, `--hands-up-hold` y
+`--crouch-hold`.
 
 Publica el **video anotado en vivo** (MJPEG) y el estado del análisis, que el
 panel muestra en "Cámara en vivo"; guarda un fotograma de evidencia por alerta y
@@ -45,6 +54,16 @@ python -m sentinelops --source 0       # webcam
   corre sin ventana y tampoco calibra; `--zona-completa` vigila todo el cuadro.
 - La primera vez descarga los modelos (`yolov8n-pose.pt` y `yolov8n.pt`).
 - Un archivo de video se reproduce a su velocidad real y en bucle.
+
+**Perfil GPU para la demo.** Con una NVIDIA, el modelo `s` da articulaciones
+más fiables (menos gestos mal leídos) y se puede inferir en todos los frames:
+
+```bash
+python -m sentinelops --pose-model yolov8s-pose.pt --inference-every 1
+```
+
+Desde el panel, el backend lanza el sensor con sus valores por defecto; para
+usar el perfil GPU ahí, cambia `POSE_MODEL_PATH` en `sentinelops/config.py`.
 
 ## Video anotado y estado
 
@@ -159,7 +178,8 @@ python -m sentinelops --source http://192.168.1.50:8080/video --no-preview --zon
 | `--source` / `--camera` | qué video se analiza (índice, archivo, URL) |
 | `--sensor-id`, `--ubicacion`, `--lat`, `--lng` | identidad del sensor y su punto en el mapa |
 | `--pose-model`, `--object-model`, `--no-objects`, `--conf`, `--weapon-conf`, `--vehicle-conf` | modelos y umbrales |
-| `--loiter-person S`, `--loiter-vehicle S`, `--proximity S` | tiempos de las reglas |
+| `--loiter-person S`, `--loiter-vehicle S`, `--proximity S` | tiempos de merodeo y altercado |
+| `--hands-up-hold S`, `--crouch-hold S` | segundos que debe sostenerse el gesto |
 | `--inference-every N` | inferencia 1 de cada N frames |
 | `--cooldown S` | espera mínima entre alertas del mismo incidente (una escalada avisa igual) |
 | `--no-calibrate`, `--no-preview`, `--zona-completa` | zona por defecto / sin ventana / todo el cuadro |
