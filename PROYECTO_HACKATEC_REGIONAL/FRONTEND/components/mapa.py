@@ -5,10 +5,12 @@ import os
 import reflex as rx
 
 from ... import campus
-from ...estilos import AZUL, ROJO, TEXTO_2, TEXTO_3, VERDE, tarjeta, titulo
+from ...estilos import ACENTO, AZUL, FONDO, ROJO, TEXTO_2, TEXTO_3, VERDE, tarjeta, titulo
 from ...state import State
 
 _ruta = rx.asset("mapa_leaflet.jsx", shared=True)
+# El mapa en vivo ocupa el alto libre de la ventana (encabezado, tarjeta e indicadores aparte).
+ALTURA_MAPA_VIVO = "clamp(340px, calc(100vh - 345px), 760px)"
 
 
 class MapaLeaflet(rx.NoSSRComponent):
@@ -74,8 +76,7 @@ def _punto(color: str, borde: str = "2px solid #fff", radio: str = "50%", lado: 
         border_radius=radio,
         background=color,
         border=borde,
-        box_shadow="0 0 0 1px rgba(17,24,39,.25)",
-        flex_shrink="0",
+                flex_shrink="0",
     )
 
 
@@ -85,7 +86,7 @@ def _leyenda_item(marca: rx.Component, texto: str) -> rx.Component:
 
 def _zona() -> rx.Component:
     return rx.box(
-        width="14px", height="14px", border_radius="50%", background="rgba(220,38,38,.3)", border="1px solid rgba(220,38,38,.5)"
+        width="14px", height="14px", border_radius="50%", background="rgba(239,68,68,.3)", border="1px solid rgba(239,68,68,.55)"
     )
 
 
@@ -93,10 +94,10 @@ def _leyenda(calor: bool = False) -> rx.Component:
     if calor:
         items = [
             _leyenda_item(
-                rx.box(width="24px", height="8px", border_radius="4px", background="linear-gradient(90deg, #fecaca, #dc2626, #7f1d1d)"),
+                rx.box(width="24px", height="8px", border_radius="4px", background="linear-gradient(90deg, #7f1d1d, #dc2626, #f97316, #fde047)"),
                 "Concentración de eventos",
             ),
-            _leyenda_item(_punto("#fff", borde="2.5px solid #0f766e"), "Rondín sugerido"),
+            _leyenda_item(_punto(FONDO, borde=f"2.5px solid {ACENTO}"), "Rondín sugerido"),
         ]
     else:
         items = [
@@ -107,7 +108,7 @@ def _leyenda(calor: bool = False) -> rx.Component:
         ]
     return rx.hstack(
         *items,
-        _leyenda_item(_punto("#374151", borde="1.5px solid #fff", radio="2px", lado="9px"), "Cámara"),
+        _leyenda_item(_punto("#cbd5e1", borde=f"1.5px solid {FONDO}", radio="2px", lado="9px"), "Cámara"),
         spacing="4",
         wrap="wrap",
     )
@@ -124,7 +125,7 @@ def mapa_en_vivo() -> rx.Component:
     return tarjeta(
         rx.vstack(
             titulo(
-                "Mapa de la región",
+                "Mapa GIS de la región",
                 rx.hstack(
                     _aviso_simulados(),
                     rx.text(State.unidades_libres, " patrullas libres", size="1", color=TEXTO_3),
@@ -141,7 +142,7 @@ def mapa_en_vivo() -> rx.Component:
                 foco=State.mapa_foco,
                 seleccion=State.seleccion_id,
                 on_alerta=State.abrir_alerta,
-                altura="480px",
+                altura=ALTURA_MAPA_VIVO,
             ),
             _leyenda(),
             spacing="3",
@@ -167,7 +168,7 @@ def mapa_de_calor() -> rx.Component:
             _mapa(calor=State.puntos_calor, rondines=State.puntos_rondin, altura="420px"),
             _leyenda(calor=True),
             rx.text(
-                "Más oscuro = más eventos. Solo se usan ubicación, tipo y hora del evento.",
+                "Más claro = más eventos. Solo se usan ubicación, tipo y hora del evento.",
                 size="1",
                 color=TEXTO_3,
             ),

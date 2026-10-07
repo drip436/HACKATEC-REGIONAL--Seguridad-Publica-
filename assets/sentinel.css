@@ -1,8 +1,37 @@
-/* Fuente del panel en todo Radix, incluidos los diálogos (se montan fuera de la página). */
 .radix-themes {
   --default-font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
   --heading-font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
 }
+
 body {
   -webkit-font-smoothing: antialiased;
+  background: #0f172a;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #334155 transparent;
+}
+
+/* Punto "en vivo" y celdas con una alerta abierta. */
+@keyframes so-pulso {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+@keyframes so-pulso-borde {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.55); }
+  50% { box-shadow: 0 0 0 4px rgba(239, 68, 68, 0); }
+}
+.so-pulso { animation: so-pulso 1.6s ease-in-out infinite; }
+.so-tile-alerta { animation: so-pulso-borde 1.6s ease-in-out infinite; }
+
+/* Celda sin imagen: trama de líneas de un monitor CCTV apagado. */
+.so-sin-senal {
+  background:
+    repeating-linear-gradient(0deg, rgba(148, 163, 184, 0.06) 0 1px, transparent 1px 3px),
+    #020617;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .so-pulso, .so-tile-alerta { animation: none; }
 }

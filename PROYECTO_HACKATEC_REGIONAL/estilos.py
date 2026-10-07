@@ -1,41 +1,47 @@
-"""Paleta y estilos compartidos del panel (tema claro, sobrio).
+"""Paleta y estilos compartidos del panel (tema oscuro táctico).
 
-Un solo color de acento (verde azulado) para lo interactivo. Los demás colores
+Un solo color de acento (cian) para lo interactivo y la telemetría. Los demás colores
 tienen un significado fijo y no se usan para decorar: rojo = incidente,
-azul = patrulla, verde = caso resuelto.
+azul = patrulla, verde = caso resuelto, ámbar = advertencia.
 """
 
 import reflex as rx
 
-FONDO = "#f5f6f8"
-SUPERFICIE = "#ffffff"
-SUPERFICIE_2 = "#f9fafb"
-LINEA = "#e5e7eb"
+FONDO = "#0f172a"
+SUPERFICIE = "#1e293b"
+SUPERFICIE_2 = "#273449"
+LINEA = "#334155"
 BORDE = f"1px solid {LINEA}"
-TEXTO = "#111827"
-TEXTO_2 = "#4b5563"
-TEXTO_3 = "#6b7280"
-ACENTO = "#0f766e"
-ACENTO_SUAVE = "#ecfdf5"
+TEXTO = "#e2e8f0"
+TEXTO_2 = "#cbd5e1"
+TEXTO_3 = "#94a3b8"
+ACENTO = "#22d3ee"
+ACENTO_SUAVE = "rgba(34, 211, 238, 0.12)"
 
-ROJO = "#dc2626"
-AZUL = "#2563eb"
-VERDE = "#16a34a"
+ROJO = "#ef4444"
+AZUL = "#3b82f6"
+VERDE = "#22c55e"
+AMBAR = "#f59e0b"
+# Fondo de video y capturas: casi negro, para que el encuadre no compita con la imagen.
+VIDEO = "#020617"
 
 # Colores de estado: reservados para severidad y estado, nunca para series.
-COLOR_SEVERIDAD = {"critica": "#b91c1c", "alta": "#c2410c", "media": "#a16207", "baja": "#4b5563"}
+COLOR_SEVERIDAD = {"critica": "#f87171", "alta": "#fb923c", "media": "#fbbf24", "baja": "#94a3b8"}
 COLOR_ESTADO = {
-    "pendiente": "#a16207",
-    "validado": "#0f766e",
-    "confirmado": "#15803d",
-    "descartado": "#6b7280",
+    "pendiente": "#fbbf24",
+    "validado": "#22d3ee",
+    "confirmado": "#4ade80",
+    "descartado": "#94a3b8",
 }
+
+# Alto del encabezado fijo: el riel y el panel lateral empiezan debajo.
+ALTO_ENCABEZADO = "56px"
 
 TARJETA = {
     "width": "100%",
-    "padding": "1.25rem",
+    "padding": "1rem",
     "border": BORDE,
-    "border_radius": "12px",
+    "border_radius": "10px",
     "background": SUPERFICIE,
 }
 
@@ -46,7 +52,7 @@ def tarjeta(*hijos, **props) -> rx.Component:
 
 def titulo(texto: str, *derecha: rx.Component) -> rx.Component:
     return rx.hstack(
-        rx.heading(texto, size="3", weight="medium", color=TEXTO),
+        rx.heading(texto, size="2", weight="medium", color=TEXTO_2, text_transform="uppercase", letter_spacing="0.06em"),
         *derecha,
         justify="between",
         align="center",
