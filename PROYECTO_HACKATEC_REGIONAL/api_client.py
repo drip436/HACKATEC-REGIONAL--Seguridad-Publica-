@@ -29,7 +29,8 @@ from .modelos import DESTINOS, fecha_hora_local
 MOCK = os.environ.get("SENTINEL_MOCK", "0") == "1"
 PREFIJO = "/api/v1"
 
-_TIMEOUT = 8.0
+# Leer puede tardar con Supabase remoto y una red lenta; conectar a la API local no.
+_TIMEOUT = httpx.Timeout(connect=4.0, read=25.0, write=10.0, pool=10.0)
 _REINTENTO_WS = 3.0
 _PAGINA = 500
 _MAX_HISTORICO = 3000
@@ -61,6 +62,11 @@ async def _pedir(metodo: str, ruta: str, *, params: dict | None = None, cuerpo: 
     try:
         async with httpx.AsyncClient(base_url=base_url() + PREFIJO, timeout=_TIMEOUT, headers=_cabeceras()) as cliente:
             respuesta = await cliente.request(metodo, ruta, params=params, json=cuerpo)
+    except (httpx.ReadTimeout, httpx.WriteTimeout, httpx.PoolTimeout) as error:
+        # La API sí está arriba: lo lento es la base de datos remota (red o Supabase).
+        raise ErrorAPI(
+            "La API tardó demasiado en responder: la base de datos remota está lenta (revisa la conexión a internet)."
+        ) from error
     except httpx.HTTPError as error:
         raise ErrorAPI(f"Sin conexión con la API ({base_url()}): {error.__class__.__name__}") from error
     if respuesta.is_success:

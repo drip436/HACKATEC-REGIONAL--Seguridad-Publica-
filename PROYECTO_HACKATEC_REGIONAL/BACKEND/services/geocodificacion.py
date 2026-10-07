@@ -116,14 +116,24 @@ MAX_DISTANCIA_A_CALLE_M = 1000.0
 
 
 def distancia_a_calle_m(lat: float, lng: float) -> float | None:
-    """Metros a la calle transitable más cercana (OSRM nearest). None si no hay red."""
-    try:
-        r = httpx.get(f"{_OSRM_URL}/nearest/v1/driving/{lng:.6f},{lat:.6f}", params={"number": 1}, timeout=_TIMEOUT)
-        r.raise_for_status()
-        return float(r.json()["waypoints"][0]["distance"])
-    except (httpx.HTTPError, ValueError, KeyError, IndexError, TypeError) as error:
-        LOGGER.warning("No se pudo verificar la ubicación con OSRM (%s); se acepta tal cual.", error)
-        return None
+    """Metros a la calle transitable más cercana (OSRM nearest). None si no hay red.
+
+    El servidor público de OSRM a veces tarda en el saludo TLS: se reintenta una vez
+    con más paciencia antes de aceptar la ubicación sin verificar."""
+    ultimo: Exception | None = None
+    for intento in range(2):
+        try:
+            r = httpx.get(
+                f"{_OSRM_URL}/nearest/v1/driving/{lng:.6f},{lat:.6f}",
+                params={"number": 1},
+                timeout=httpx.Timeout(connect=5.0 + 5.0 * intento, read=8.0, write=5.0, pool=5.0),
+            )
+            r.raise_for_status()
+            return float(r.json()["waypoints"][0]["distance"])
+        except (httpx.HTTPError, ValueError, KeyError, IndexError, TypeError) as error:
+            ultimo = error
+    LOGGER.warning("No se pudo verificar la ubicación con OSRM (%s); se acepta tal cual.", ultimo)
+    return None
 
 
 def verificar_en_tierra(lat: float, lng: float) -> None:

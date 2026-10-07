@@ -14,7 +14,8 @@ from ..services import atenciones
 from ..services.vinculacion import SUPERVISOR
 
 LOGGER = logging.getLogger("sentinelops.ciclo")
-_INTERVALO_S = 1.0
+# Cada vuelta es una consulta a la base (remota): cada 2 s basta para que la llegada se vea a tiempo.
+_INTERVALO_S = 2.0
 
 
 async def _vigilar_llegadas() -> None:
