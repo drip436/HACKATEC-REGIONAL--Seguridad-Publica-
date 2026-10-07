@@ -64,6 +64,8 @@ class EstadoUI(State):
     # Cámara proyectada en el reproductor principal; "" = la cámara en vivo.
     camara_sel: str = ""
     camaras_demo: list[CamaraDemo] = []
+    # Video de demostración abierto en grande; "" = ninguno.
+    demo_ampliada: str = ""
 
     def _es_vinculada(self, camara: dict) -> bool:
         return self.cam_vinculada and (camara["id"] == "vinculada" or camara["nombre"] == self.cam_nombre)
@@ -183,9 +185,28 @@ class EstadoUI(State):
                 self._enfocar(camara["lat"], camara["lng"])
                 return
 
+    @rx.var
+    def video_ampliado(self) -> CamaraDemo:
+        """Cámara de demostración abierta en grande (vacía si no hay ninguna)."""
+        for camara in self.camaras_demo:
+            if camara["id"] == self.demo_ampliada:
+                return camara
+        return {"id": "", "nombre": "", "lat": 0.0, "lng": 0.0, "video_url": ""}
+
+    @rx.event
+    def ampliar_demo(self, camara_id: str):
+        """Abre en grande un video de demostración."""
+        self.demo_ampliada = camara_id
+
+    @rx.event
+    def cambiar_demo_ampliada(self, abierta: bool):
+        if not abierta:
+            self.demo_ampliada = ""
+
     @rx.event
     def ubicar_demo(self, camara_id: str):
-        """Centra el mapa en una cámara de demostración."""
+        """Cierra el video ampliado y centra el mapa en esa cámara de demostración."""
+        self.demo_ampliada = ""
         for camara in self.camaras_demo:
             if camara["id"] == camara_id:
                 self._enfocar(camara["lat"], camara["lng"])
