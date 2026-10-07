@@ -378,10 +378,11 @@ class State(rx.State):
             self.seleccion_id = alerta["id"]
         if en_vivo and alerta["severidad"] in SEVERIDADES_VIOLENCIA:
             self._enfocar(alerta["lat"], alerta["lng"])
-        # La ventana se abre sola solo con la primera alerta de la cámara: si ya hay otra
-        # pendiente o una unidad en camino, reabrirla taparía el mapa a cada detección.
+        # El panel se abre solo con las alertas de violencia (alta o crítica: una agresión
+        # física es "alta"), pero no si la cámara ya tiene una crítica pendiente o una
+        # unidad en camino: reabrirlo taparía el mapa a cada detección.
         if (
-            alerta["severidad"] == "critica"
+            alerta["severidad"] in SEVERIDADES_VIOLENCIA
             and alerta["estado"] == "pendiente"
             and not self.modal_abierto
             and not self._camara_ocupada(alerta["camara_id"], excepto=alerta["id"])
@@ -465,12 +466,17 @@ class State(rx.State):
                     break
                 sensor_nuevo = False
                 aviso = ""
+                aviso_alerta = ""
                 async with self:
                     if clase == "estado":
                         self.conexion = str(dato)
                     elif clase == "alerta" and isinstance(dato, dict):
+                        repetida = self._indice(str(dato.get("id"))) >= 0
                         self._agregar_alerta(dato, en_vivo=True)
                         sensor_nuevo = all(c["id"] != dato.get("camara_id") for c in self.camaras)
+                        nueva = self.alertas[0] if self.alertas and not repetida else None
+                        if nueva and nueva["severidad"] in SEVERIDADES_VIOLENCIA:
+                            aviso_alerta = f"{nueva['tipo_txt']} · {nueva['camara_id']} · severidad {nueva['sev_txt']}"
                     elif clase == "cambio" and isinstance(dato, dict):
                         cambio = dict(dato)
                         self._aplicar_cambio(cambio.pop("id"), **cambio)
@@ -480,6 +486,9 @@ class State(rx.State):
                 if aviso:
                     # Fuera del `async with`: no se emite con el estado bloqueado.
                     yield rx.toast.success(aviso)
+                if aviso_alerta:
+                    # Toda alerta de violencia se avisa, aunque el panel no se abra solo.
+                    yield rx.toast.error(aviso_alerta, duration=8000)
                 if sensor_nuevo:
                     # El backend autorregistra sensores desconocidos: se relee el inventario.
                     try:
