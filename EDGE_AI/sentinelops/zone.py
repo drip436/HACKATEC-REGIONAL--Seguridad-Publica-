@@ -70,6 +70,29 @@ CONVERGE_RATIO: float = 0.5
 # Tres o más personas pegadas son un grupo o una fila, no una agresión.
 GROUP_SUPPRESS_SIZE: int = 3
 
+# --- Colisiones --------------------------------------------------------------
+# Las velocidades van en anchos de caja por segundo: así no dependen de la
+# distancia a la cámara. Un choque es físico: acercamiento rápido, contacto,
+# frenada en seco (décimas de segundo, no los 2-3 s de estacionarse) y los
+# implicados quedan quietos y en contacto. Cruzarse delante de la cámara no
+# frena; estacionarse frena despacio; dos estacionados nunca se acercaron.
+COLLISION_MIN_SPEED: float = 0.8  # alguno venía en movimiento (anchos/s)
+COLLISION_APPROACH_SECONDS: float = 1.5  # su distancia cayó a la mitad en este tiempo
+COLLISION_OVERLAP_RATIO: float = 0.15  # contacto: solape sobre la caja menor
+COLLISION_WINDOW_SECONDS: float = 0.4  # ventana para medir la velocidad
+COLLISION_MIN_DECEL: float = 2.5  # anchos/s perdidos por segundo: frenada en seco
+COLLISION_STOP_RATIO: float = 0.3  # ...y queda a menos de esta fracción de la velocidad previa
+COLLISION_IMPACT_SECONDS: float = 1.0  # la frenada debe verse al inicio del contacto
+COLLISION_HOLD_SECONDS: float = 1.5  # quietos y en contacto este tiempo -> ROJO
+COLLISION_STILL_FACTOR: float = 0.5  # quieto: no se mueve más de medio ancho
+# Atropello: vehículo en movimiento que solapa a una persona que antes estaba
+# fuera de él (descarta al conductor visible), y la persona cae o queda inmóvil
+# mientras el vehículo frena en seco.
+HIT_PERSON_OVERLAP: float = 0.3  # fracción de la caja de la persona cubierta
+HIT_APART_SECONDS: float = 0.5  # la persona se vio fuera del vehículo hace esto
+HIT_FALL_RATIO: float = 0.6  # cae: su altura baja a esta fracción
+HIT_FOLLOW_SECONDS: float = 1.5  # ventana tras el contacto para ver la caída
+
 # Compatibilidad con la CLI previa, que hablaba de un único "merodeo".
 LOITERING_SECONDS: float = PERSON_LOITER_SECONDS
 
@@ -116,7 +139,7 @@ _LEVEL_SEVERITIES: dict[ThreatLevel, str] = {
 
 
 class ThreatRule(Enum):
-    """Las cinco reglas de comportamiento, con su traducción al backend."""
+    """Las reglas de comportamiento, con su traducción al backend."""
 
     VEHICLE_WAITING = "VEHICULO DE ESPERA"
     LOITERING = "MERODEO Y RECONOCIMIENTO"
@@ -124,6 +147,8 @@ class ThreatRule(Enum):
     WEAPON = "ASALTO INMINENTE: ARMA"
     HANDS_UP = "ASALTO INMINENTE: MANOS ARRIBA"
     PROXIMITY = "ACOSO FISICO / ALTERCADO"
+    VEHICLE_COLLISION = "COLISION VEHICULAR"
+    PEDESTRIAN_HIT = "ATROPELLO"
 
     @property
     def label(self) -> str:
@@ -156,9 +181,13 @@ _RULE_LEVELS: dict[ThreatRule, ThreatLevel] = {
     ThreatRule.WEAPON: ThreatLevel.DANGER,
     ThreatRule.HANDS_UP: ThreatLevel.DANGER,
     ThreatRule.PROXIMITY: ThreatLevel.DANGER,
+    ThreatRule.VEHICLE_COLLISION: ThreatLevel.DANGER,
+    ThreatRule.PEDESTRIAN_HIT: ThreatLevel.DANGER,
 }
 
 _RULE_PRIORITIES: dict[ThreatRule, int] = {
+    ThreatRule.PEDESTRIAN_HIT: 8,
+    ThreatRule.VEHICLE_COLLISION: 7,
     ThreatRule.WEAPON: 6,
     ThreatRule.HANDS_UP: 5,
     ThreatRule.CROUCHING: 4,
@@ -177,6 +206,8 @@ _RULE_EVENT_TYPES: dict[ThreatRule, str] = {
     ThreatRule.WEAPON: "INTRUSION_PERIMETRO",
     ThreatRule.HANDS_UP: "INTRUSION_PERIMETRO",
     ThreatRule.PROXIMITY: "AGLOMERACION",
+    ThreatRule.VEHICLE_COLLISION: "COLISION",
+    ThreatRule.PEDESTRIAN_HIT: "ATROPELLO",
 }
 
 _RULE_SEVERITIES: dict[ThreatRule, str] = {
@@ -186,6 +217,8 @@ _RULE_SEVERITIES: dict[ThreatRule, str] = {
     ThreatRule.WEAPON: "CRITICA",
     ThreatRule.HANDS_UP: "CRITICA",
     ThreatRule.PROXIMITY: "ALTA",
+    ThreatRule.VEHICLE_COLLISION: "ALTA",
+    ThreatRule.PEDESTRIAN_HIT: "CRITICA",
 }
 
 
@@ -414,6 +447,35 @@ class _TrackHistory:
             return False
         return last.height <= ratio * median(previous)
 
+    def speed(self, key: str, start_ago: float, end_ago: float, now: float) -> float | None:
+        """Velocidad media (anchos de caja/s) entre `now-start_ago` y `now-end_ago`."""
+        samples = [s for s in self._samples.get(key, ()) if end_ago <= now - s.at <= start_ago]
+        if len(samples) < 2:
+            return None
+        first, last = samples[0], samples[-1]
+        elapsed = last.at - first.at
+        if elapsed < 0.5 * (start_ago - end_ago):
+            return None  # muestras insuficientes para esa ventana
+        width = max(median(s.width for s in samples), 1.0)
+        return float(np.hypot(last.x - first.x, last.y - first.y)) / elapsed / width
+
+    def braked(self, key: str, window: float, min_speed: float, min_decel: float, stop_ratio: float, now: float) -> bool:
+        """True si en la última ventana la velocidad cayó en seco respecto a la anterior."""
+        previous = self.speed(key, 2 * window, window, now)
+        current = self.speed(key, window, 0.0, now)
+        if previous is None or current is None or previous < min_speed:
+            return False
+        return current <= stop_ratio * previous and (previous - current) / window >= min_decel
+
+    def box_ago(self, key: str, ago: float, now: float) -> tuple[float, float, float, float] | None:
+        """Caja aproximada de la identidad hace `ago` segundos (None sin datos)."""
+        target = now - ago
+        samples = self._samples.get(key)
+        if not samples or samples[0].at > target + 0.3:
+            return None
+        s = min(samples, key=lambda m: abs(m.at - target))
+        return (s.x - s.width / 2, s.y - s.height, s.x + s.width / 2, s.y)
+
     def distance_ago(self, key_a: str, key_b: str, ago: float, now: float) -> float | None:
         """Distancia entre dos identidades hace `ago` segundos (None si no hay datos)."""
         target = now - ago
@@ -431,6 +493,25 @@ class _TrackHistory:
 
     def clear(self) -> None:
         self._samples.clear()
+
+
+@dataclass(slots=True)
+class _Contact:
+    """Contacto en curso entre dos identidades (choque o atropello)."""
+
+    started_at: float
+    approached: bool  # venían de lejos / el vehículo iba en movimiento y la persona fuera
+    impact: bool = False  # ya se vio la frenada en seco (o la caída)
+
+
+def _covered_fraction(box: tuple[float, float, float, float], other: tuple[float, float, float, float]) -> float:
+    """Fracción del área de `box` cubierta por `other`."""
+    w = min(box[2], other[2]) - max(box[0], other[0])
+    h = min(box[3], other[3]) - max(box[1], other[1])
+    area = max(box[2] - box[0], 0.0) * max(box[3] - box[1], 0.0)
+    if w <= 0 or h <= 0 or area <= 0:
+        return 0.0
+    return w * h / area
 
 
 class _Latch:
@@ -545,6 +626,7 @@ class ThreatAssessor:
         track_grace_seconds: float = TRACK_GRACE_SECONDS,
         hands_up_hold_seconds: float = HANDS_UP_HOLD_SECONDS,
         crouch_hold_seconds: float = CROUCH_HOLD_SECONDS,
+        collision_hold_seconds: float = COLLISION_HOLD_SECONDS,
     ) -> None:
         for name, value in (
             ("person_loiter_seconds", person_loiter_seconds),
@@ -554,6 +636,7 @@ class ThreatAssessor:
             ("track_grace_seconds", track_grace_seconds),
             ("hands_up_hold_seconds", hands_up_hold_seconds),
             ("crouch_hold_seconds", crouch_hold_seconds),
+            ("collision_hold_seconds", collision_hold_seconds),
         ):
             if value < 0:
                 raise ValueError(f"{name} no puede ser negativo")
@@ -566,6 +649,7 @@ class ThreatAssessor:
         self._proximity_distance = proximity_distance_factor
         self._hands_up_seconds = hands_up_hold_seconds
         self._crouch_seconds = crouch_hold_seconds
+        self._collision_seconds = collision_hold_seconds
 
         self._person_ids = _IdentityResolver("person", IDENTITY_MIN_IOU, track_grace_seconds)
         self._vehicle_ids = _IdentityResolver("vehicle", IDENTITY_MIN_IOU, track_grace_seconds)
@@ -577,6 +661,9 @@ class ThreatAssessor:
         self._history = _TrackHistory(HISTORY_SECONDS)
         # Pareja -> si su contacto empezó con un acercamiento brusco.
         self._pair_converged: dict[str, bool] = {}
+        # Contactos en curso: vehículo-vehículo y vehículo-persona.
+        self._crashes: dict[str, _Contact] = {}
+        self._hits: dict[str, _Contact] = {}
         self._weapon_latch = _Latch(danger_hold_seconds)
         self._crouch_latch = _Latch(danger_hold_seconds)
         self._hands_up_latch = _Latch(danger_hold_seconds)
@@ -611,11 +698,18 @@ class ThreatAssessor:
             resolver.clear()
         self._history.clear()
         self._pair_converged.clear()
+        self._crashes.clear()
+        self._hits.clear()
         for latch in (self._weapon_latch, self._crouch_latch, self._hands_up_latch):
             latch.clear()
 
+    def _braked(self, key: str, now: float) -> bool:
+        return self._history.braked(
+            key, COLLISION_WINDOW_SECONDS, COLLISION_MIN_SPEED, COLLISION_MIN_DECEL, COLLISION_STOP_RATIO, now
+        )
+
     def assess(self, detections: Iterable[Detection], now: float) -> ThreatAssessment:
-        """Clasifica la escena en VERDE / AMARILLO / ROJO según las 5 reglas."""
+        """Clasifica la escena en VERDE / AMARILLO / ROJO según las reglas."""
         people_inside: list[Detection] = []
         people_outside: list[Detection] = []
         vehicles_inside: list[Detection] = []
@@ -646,9 +740,13 @@ class ThreatAssessor:
         all_person_keys = self._person_ids.resolve([*people_inside, *people_outside], now)
         inside_ids = {id(person) for person in people_inside}
         person_keys = {k: p for k, p in all_person_keys.items() if id(p) in inside_ids}
-        vehicle_keys = self._vehicle_ids.resolve(vehicles_inside, now)
+        all_vehicle_keys = self._vehicle_ids.resolve([*vehicles_inside, *vehicles_outside], now)
+        inside_vehicle_ids = {id(vehicle) for vehicle in vehicles_inside}
+        vehicle_keys = {k: v for k, v in all_vehicle_keys.items() if id(v) in inside_vehicle_ids}
         for key, person in all_person_keys.items():
             self._history.push(key, person, now)
+        for key, vehicle in all_vehicle_keys.items():
+            self._history.push(key, vehicle, now)
 
         # --- Regla 1: vehículo de espera ---------------------------------
         for key, vehicle in vehicle_keys.items():
@@ -732,6 +830,62 @@ class ThreatAssessor:
                 )
         for pair_key in [k for k in self._pair_converged if k not in active_pairs]:
             del self._pair_converged[pair_key]
+
+        # --- Regla 6: colisión vehicular (en cualquier parte del cuadro) --
+        active_crashes: set[str] = set()
+        for (key_a, first), (key_b, second) in combinations(all_vehicle_keys.items(), 2):
+            if first.overlap_ratio(second) < COLLISION_OVERLAP_RATIO:
+                continue
+            crash_key = f"crash:{min(key_a, key_b)}|{max(key_a, key_b)}"
+            active_crashes.add(crash_key)
+            contact = self._crashes.get(crash_key)
+            if contact is None:
+                before = self._history.distance_ago(key_a, key_b, COLLISION_APPROACH_SECONDS, now)
+                current = first.centroid_distance(second)
+                contact = _Contact(now, approached=before is not None and current <= 0.5 * before)
+                self._crashes[crash_key] = contact
+            if not contact.impact and now - contact.started_at <= COLLISION_IMPACT_SECONDS:
+                contact.impact = any(self._braked(key, now) for key in (key_a, key_b))
+            if (
+                contact.approached
+                and contact.impact
+                and now - contact.started_at >= self._collision_seconds
+                and all(self._history.is_still(k, self._collision_seconds, COLLISION_STILL_FACTOR, now) for k in (key_a, key_b))
+            ):
+                signals.append(ThreatSignal(ThreatRule.VEHICLE_COLLISION, first, second, now - contact.started_at))
+        for crash_key in [k for k in self._crashes if k not in active_crashes]:
+            del self._crashes[crash_key]  # se separaron: la pareja vuelve a poder chocar
+
+        # --- Regla 7: atropello ------------------------------------------
+        active_hits: set[str] = set()
+        for key_v, vehicle in all_vehicle_keys.items():
+            for key_p, person in all_person_keys.items():
+                if _covered_fraction(person.bbox, vehicle.bbox) < HIT_PERSON_OVERLAP:
+                    continue
+                hit_key = f"hit:{key_v}|{key_p}"
+                active_hits.add(hit_key)
+                contact = self._hits.get(hit_key)
+                if contact is None:
+                    moving = (self._history.speed(key_v, 2 * COLLISION_WINDOW_SECONDS, 0.0, now) or 0.0) >= COLLISION_MIN_SPEED
+                    person_before = self._history.box_ago(key_p, HIT_APART_SECONDS, now)
+                    vehicle_before = self._history.box_ago(key_v, HIT_APART_SECONDS, now)
+                    apart = (
+                        person_before is not None
+                        and vehicle_before is not None
+                        and _covered_fraction(person_before, vehicle_before) < HIT_PERSON_OVERLAP
+                    )
+                    contact = _Contact(now, approached=moving and apart)
+                    self._hits[hit_key] = contact
+                if contact.approached and not contact.impact and now - contact.started_at <= HIT_FOLLOW_SECONDS:
+                    fell = self._history.dropped_height(key_p, HIT_FALL_RATIO, HIT_APART_SECONDS, now)
+                    pinned = self._braked(key_v, now) and self._history.is_still(
+                        key_p, COLLISION_WINDOW_SECONDS, COLLISION_STILL_FACTOR, now
+                    )
+                    contact.impact = fell or pinned
+                if contact.impact:
+                    signals.append(ThreatSignal(ThreatRule.PEDESTRIAN_HIT, vehicle, person, now - contact.started_at))
+        for hit_key in [k for k in self._hits if k not in active_hits]:
+            del self._hits[hit_key]
 
         for registry in (
             self._person_dwell,

@@ -51,6 +51,12 @@ def annotate(
         _draw_skeleton(canvas, detection, _COLOR_SKELETON)
     for detection in assessment.weapons:
         _draw_detection(canvas, detection, _COLOR_WEAPON)
+    # Los implicados en una señal (p. ej. los dos vehículos de un choque) van
+    # en el color del nivel aunque estén fuera de la zona.
+    for signal in assessment.signals:
+        for detection in (signal.detection, signal.partner):
+            if detection is not None:
+                _draw_detection(canvas, detection, level_color)
 
     _draw_hud(canvas, assessment, fps, cooldown_remaining)
     if assessment.level is ThreatLevel.DANGER:

@@ -29,6 +29,7 @@ from .evidence import EvidenceError, EvidenceStore
 from .notifier import AlertEvent, AlertNotifier
 from .stream_server import FramePublisher, StreamServer
 from .zone import (
+    COLLISION_HOLD_SECONDS,
     CROUCH_HOLD_SECONDS,
     HANDS_UP_HOLD_SECONDS,
     PERSON_LOITER_SECONDS,
@@ -61,6 +62,7 @@ _NON_CONFIG_ARGS = (
     "proximity",
     "hands_up_hold",
     "crouch_hold",
+    "collision_hold",
     "inference_every",
     "calibrate",
     "zona_completa",
@@ -77,6 +79,7 @@ class RuntimeOptions:
     proximity_seconds: float
     hands_up_hold_seconds: float
     crouch_hold_seconds: float
+    collision_hold_seconds: float
     inference_every: int
     calibrate: bool
     # Todo el cuadro es la zona vigilada (cámara vinculada desde el panel, sin ratón).
@@ -195,6 +198,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         type=float,
         dest="crouch_hold",
         help=f"Segundos agachado en la zona -> ROJO. Def: {CROUCH_HOLD_SECONDS}.",
+    )
+    parser.add_argument(
+        "--collision-hold",
+        type=float,
+        dest="collision_hold",
+        help=f"Segundos quietos y en contacto tras el impacto -> ROJO. Def: {COLLISION_HOLD_SECONDS}.",
     )
     parser.add_argument(
         "--inference-every",
@@ -451,6 +460,7 @@ def run(config: Config, options: RuntimeOptions) -> int:
                 proximity_seconds=options.proximity_seconds,
                 hands_up_hold_seconds=options.hands_up_hold_seconds,
                 crouch_hold_seconds=options.crouch_hold_seconds,
+                collision_hold_seconds=options.collision_hold_seconds,
             )
 
             # El stream siguió llenando el búfer durante la calibración.
@@ -634,6 +644,7 @@ def main(argv: list[str] | None = None) -> int:
             proximity_seconds=extra["proximity"] or PROXIMITY_SECONDS,
             hands_up_hold_seconds=extra["hands_up_hold"] or HANDS_UP_HOLD_SECONDS,
             crouch_hold_seconds=extra["crouch_hold"] or CROUCH_HOLD_SECONDS,
+            collision_hold_seconds=extra["collision_hold"] or COLLISION_HOLD_SECONDS,
             inference_every=inference_every,
             zona_completa=bool(extra["zona_completa"]),
             # Sin ventana no hay ratón: headless nunca calibra.
