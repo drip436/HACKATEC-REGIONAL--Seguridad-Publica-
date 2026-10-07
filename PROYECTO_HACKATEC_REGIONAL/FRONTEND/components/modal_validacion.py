@@ -1,8 +1,8 @@
-"""Flujo Human-in-the-loop: el operador confirma y despacha, o descarta."""
+"""Revisión de una alerta: atender (enviar patrulla), dejar pendiente, despachar o descartar."""
 
 import reflex as rx
 
-from ...estilos import BORDE, TEXTO_2, TEXTO_3, insignia_estado, insignia_severidad
+from ...estilos import LINEA, TEXTO_2, TEXTO_3, insignia_estado, insignia_severidad
 from ...modelos import DESTINOS, MOTIVOS_DESCARTE
 from ...state import State
 
@@ -12,165 +12,118 @@ def _captura(alerta) -> rx.Component:
         alerta["snapshot_url"] != "",
         rx.image(
             src=alerta["snapshot_url"],
-            alt="Captura del evento, sin identificación de personas",
+            alt="Captura del evento",
             width="100%",
             max_height="260px",
             object_fit="contain",
-            border_radius="12px",
+            border_radius="6px",
             background="#000",
         ),
         rx.center(
-            rx.text("Sin captura disponible para este evento", color=TEXTO_3, size="2"),
+            rx.text("Sin captura", color=TEXTO_3, size="2"),
             width="100%",
-            height="160px",
-            border=BORDE,
-            border_radius="12px",
-            background="rgba(15, 23, 42, 0.6)",
+            height="120px",
+            border=f"1px solid {LINEA}",
+            border_radius="6px",
+            background="#000",
         ),
     )
 
 
-def _campo(etiqueta: str, control: rx.Component) -> rx.Component:
-    return rx.vstack(rx.text(etiqueta, size="2", color=TEXTO_2), control, spacing="1", width="100%", align="stretch")
-
-
-def _acciones() -> rx.Component:
+def _atender() -> rx.Component:
     return rx.vstack(
-        rx.grid(
-            _campo(
-                "Despachar a",
-                rx.select(list(DESTINOS), value=State.destino, on_change=State.set_destino, width="100%"),
-            ),
-            _campo(
-                "Motivo (solo para descartar)",
-                rx.select(
-                    MOTIVOS_DESCARTE,
-                    value=State.motivo,
-                    on_change=State.set_motivo,
-                    placeholder="Selecciona un motivo",
-                    width="100%",
-                ),
-            ),
-            columns=rx.breakpoints(initial="1", sm="2"),
-            spacing="3",
-            width="100%",
-        ),
         rx.flex(
             rx.button(
-                "Descartar",
-                on_click=State.descartar,
-                disabled=State.procesando | (State.motivo == ""),
-                color_scheme="gray",
-                variant="soft",
+                rx.icon("siren", size=16),
+                "Atender",
+                on_click=State.atender,
+                loading=State.procesando,
                 size="3",
                 flex="1",
             ),
             rx.button(
-                "Confirmar y despachar",
-                on_click=State.confirmar,
-                loading=State.procesando,
-                color_scheme="green",
+                "Marcar pendiente",
+                on_click=State.marcar_pendiente,
+                variant="soft",
+                color_scheme="gray",
                 size="3",
                 flex="1",
             ),
             gap="0.75rem",
-            wrap="wrap",
             width="100%",
         ),
-        spacing="4",
+        rx.cond(
+            State.unidad_cercana_sel != "",
+            rx.text("Saldría ", State.unidad_cercana_sel, size="1", color=TEXTO_3),
+        ),
+        spacing="2",
         width="100%",
     )
 
 
-def _despacho_pendiente(alerta) -> rx.Component:
-    """Evento ya validado cuyo despacho aún no tiene acuse (o falló la federación)."""
-    return rx.vstack(
-        rx.hstack(insignia_estado(alerta), rx.text(alerta["despacho"], size="2"), align="center", spacing="2", wrap="wrap"),
-        rx.text("El evento ya fue validado; falta federarlo a una dependencia.", size="2", color=TEXTO_2),
-        _campo(
-            "Despachar a",
-            rx.select(list(DESTINOS), value=State.destino, on_change=State.set_destino, width="100%"),
-        ),
+def _mas_acciones(alerta) -> rx.Component:
+    despachar = rx.hstack(
+        rx.select(list(DESTINOS), value=State.destino, on_change=State.set_destino, flex="1"),
+        rx.button("Despachar", on_click=State.confirmar, loading=State.procesando, variant="soft"),
+        width="100%",
+        spacing="2",
+    )
+    descartar = rx.hstack(
+        rx.select(MOTIVOS_DESCARTE, value=State.motivo, on_change=State.set_motivo, placeholder="Motivo", flex="1"),
         rx.button(
-            "Despachar",
-            on_click=State.confirmar,
-            loading=State.procesando,
-            color_scheme="green",
-            size="3",
-            width="100%",
+            "Descartar",
+            on_click=State.descartar,
+            disabled=State.procesando | (State.motivo == ""),
+            variant="soft",
+            color_scheme="gray",
         ),
-        spacing="3",
         width="100%",
+        spacing="2",
     )
-
-
-def _resuelta(alerta) -> rx.Component:
-    return rx.vstack(
-        rx.hstack(insignia_estado(alerta), rx.text(alerta["despacho"], size="2"), align="center", spacing="2"),
-        rx.cond(alerta["folio"] != "", rx.text("Acuse de interoperabilidad: ", rx.code(alerta["folio"]), size="2")),
-        rx.dialog.close(rx.button("Cerrar", variant="soft", color_scheme="gray", size="3", width="100%")),
-        spacing="3",
-        width="100%",
-    )
-
-
-def _atencion_campo(alerta) -> rx.Component:
-    """Pendiente o atendido: atender envía una patrulla que sigue las calles hasta el lugar."""
-    return rx.cond(
-        alerta["estado"] == "descartado",
-        rx.fragment(),
-        rx.match(
-            State.caso_sel,
-            (
-                "en_camino",
-                rx.callout.root(
-                    rx.callout.icon(rx.icon("siren")),
-                    rx.callout.text("Unidad en camino: ", State.unidad_sel, ". El caso se resolverá cuando llegue."),
-                    color_scheme="blue",
-                    width="100%",
-                ),
-            ),
-            (
-                "resuelto",
-                rx.callout.root(
-                    rx.callout.icon(rx.icon("circle-check")),
-                    rx.callout.text("Caso atendido y resuelto en el lugar (", State.unidad_sel, ")."),
-                    color_scheme="green",
-                    width="100%",
-                ),
-            ),
-            rx.vstack(
-                rx.text("Atención en campo", size="2", color=TEXTO_2, weight="medium"),
-                rx.flex(
-                    rx.button(
-                        rx.icon("clock", size=16),
-                        "Marcar pendiente",
-                        on_click=State.marcar_pendiente,
-                        variant="soft",
-                        color_scheme="gray",
-                        size="3",
-                        flex="1",
-                    ),
-                    rx.button(
-                        rx.icon("siren", size=16),
-                        "Atender",
-                        on_click=State.atender,
-                        loading=State.procesando,
-                        color_scheme="blue",
-                        size="3",
-                        flex="1",
-                    ),
-                    gap="0.75rem",
-                    wrap="wrap",
-                    width="100%",
-                ),
-                rx.text(
-                    "Atender envía una patrulla por las calles hasta el lugar; el caso se cierra cuando llega.",
-                    size="1",
-                    color=TEXTO_3,
+    return rx.accordion.root(
+        rx.accordion.item(
+            header=rx.text("Más acciones", size="2", color=TEXTO_2),
+            content=rx.vstack(
+                rx.text("Avisar a una dependencia", size="1", color=TEXTO_3),
+                despachar,
+                rx.cond(
+                    alerta["estado"] == "pendiente",
+                    rx.vstack(rx.text("Falsa alarma", size="1", color=TEXTO_3), descartar, spacing="1", width="100%"),
                 ),
                 spacing="2",
                 width="100%",
+            ),
+            value="mas",
+        ),
+        collapsible=True,
+        type="single",
+        variant="ghost",
+        width="100%",
+    )
+
+
+def _aviso(color: str, icono: str, *texto) -> rx.Component:
+    return rx.callout.root(
+        rx.callout.icon(rx.icon(icono)),
+        rx.callout.text(*texto),
+        color_scheme=color,
+        variant="surface",
+        width="100%",
+    )
+
+
+def _acciones(alerta) -> rx.Component:
+    return rx.cond(
+        (alerta["estado"] == "resuelto") | (State.caso_sel == "resuelto"),
+        _aviso("green", "circle-check", "Atendido / Resuelto", rx.cond(State.unidad_sel != "", rx.text.span(" · ", State.unidad_sel), "")),
+        rx.cond(
+            State.caso_sel == "en_camino",
+            _aviso("blue", "siren", "Unidad en camino: ", State.unidad_sel),
+            rx.match(
+                alerta["estado"],
+                ("descartado", rx.text(alerta["despacho"], size="2", color=TEXTO_2)),
+                ("confirmado", _aviso("indigo", "send", "Despachado a ", alerta["despacho"], rx.cond(alerta["folio"] != "", rx.text.span(" · acuse ", alerta["folio"]), ""))),
+                rx.vstack(_atender(), _mas_acciones(alerta), spacing="3", width="100%"),
             ),
         ),
     )
@@ -184,30 +137,19 @@ def modal_validacion() -> rx.Component:
         rx.dialog.content(
             rx.vstack(
                 rx.hstack(
-                    rx.dialog.title(alerta["tipo_txt"], margin="0"),
-                    insignia_severidad(alerta),
+                    rx.dialog.title(alerta["tipo_txt"], margin="0", size="4"),
+                    rx.hstack(insignia_severidad(alerta), insignia_estado(alerta), spacing="3", align="center"),
                     justify="between",
                     align="center",
                     width="100%",
                 ),
-                rx.dialog.description(
-                    "Evento ", rx.code(alerta["id"]), ". La decisión es del operador; la IA solo sugiere.",
-                    size="2",
-                    color=TEXTO_2,
-                ),
                 _captura(alerta),
                 datos_alerta(alerta),
-                _atencion_campo(alerta),
-                rx.match(
-                    alerta["estado"],
-                    ("pendiente", _acciones()),
-                    ("validado", _despacho_pendiente(alerta)),
-                    _resuelta(alerta),
-                ),
+                _acciones(alerta),
                 spacing="4",
                 width="100%",
             ),
-            max_width="560px",
+            max_width="520px",
         ),
         open=State.modal_abierto,
         on_open_change=State.cambiar_modal,

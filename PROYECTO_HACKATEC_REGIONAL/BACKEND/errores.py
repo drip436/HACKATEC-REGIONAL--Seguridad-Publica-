@@ -33,6 +33,13 @@ class SolicitudInvalida(SentinelError):
     codigo = "solicitud_invalida"
 
 
+class CamaraInaccesible(SentinelError):
+    """La cámara indicada no responde con video (URL, red o app apagada)."""
+
+    status_code = 422
+    codigo = "camara_inaccesible"
+
+
 class NoAutenticado(SentinelError):
     status_code = 401
     codigo = "no_autenticado"

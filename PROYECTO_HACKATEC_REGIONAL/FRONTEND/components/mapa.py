@@ -1,4 +1,4 @@
-"""Mapa de Mérida, Yucatán (Leaflet) envuelto como componente Reflex."""
+"""Mapa del Tecnológico de Mérida (Leaflet) envuelto como componente Reflex."""
 
 import reflex as rx
 
@@ -26,6 +26,7 @@ class MapaLeaflet(rx.NoSSRComponent):
     camaras: rx.Var[list[dict]]
     alertas: rx.Var[list[dict]]
     rondines: rx.Var[list[dict]]
+    unidades: rx.Var[list[dict]]
     patrullas: rx.Var[list[dict]]
     foco: rx.Var[list[float]]
     calor: rx.Var[list[list[float]]]
@@ -46,34 +47,39 @@ def _mapa(**props) -> rx.Component:
     )
 
 
+def _punto(color: str, borde: str = "2px solid #f8fafc", relleno: bool = True) -> rx.Component:
+    return rx.box(
+        width="9px",
+        height="9px",
+        border_radius="50%",
+        background=color if relleno else "transparent",
+        border=borde,
+        flex_shrink="0",
+    )
+
+
 def _leyenda_item(marca: rx.Component, texto: str) -> rx.Component:
     return rx.hstack(marca, rx.text(texto, size="1", color=TEXTO_2), spacing="1", align="center")
 
 
 def _leyenda(calor: bool = False) -> rx.Component:
-    rojo = (
-        _leyenda_item(
-            rx.box(width="22px", height="8px", border_radius="4px", background="linear-gradient(90deg, #7f1d1d, #dc2626, #fde68a)"),
-            "Concentración de alertas",
-        )
-        if calor
-        else _leyenda_item(
-            rx.box(width="10px", height="10px", border_radius="50%", background=ROJO), "Alerta de inseguridad (más grande = más grave)"
-        )
-    )
-    en_vivo = (
-        []
-        if calor
-        else [
-            _leyenda_item(rx.box(width="10px", height="10px", border_radius="50%", background=AZUL, border="2px solid #f8fafc"), "Patrulla"),
-            _leyenda_item(rx.box(width="10px", height="10px", border_radius="50%", background=VERDE), "Caso resuelto"),
+    if calor:
+        items = [
+            _leyenda_item(
+                rx.box(width="22px", height="8px", border_radius="4px", background="linear-gradient(90deg, #7f1d1d, #dc2626, #fde68a)"),
+                "Concentración de alertas",
+            ),
         ]
-    )
+    else:
+        items = [
+            _leyenda_item(_punto(ROJO), "Alerta abierta"),
+            _leyenda_item(_punto(VERDE), "Resuelta"),
+            _leyenda_item(_punto(AZUL), "Patrulla"),
+        ]
     return rx.hstack(
-        rojo,
-        *en_vivo,
-        _leyenda_item(rx.box(width="10px", height="10px", border_radius="50%", border=f"2px solid {AZUL}"), "Rondín sugerido"),
-        _leyenda_item(rx.box(width="10px", height="10px", border_radius="2px", background="#e2e8f0"), "Cámara"),
+        *items,
+        _leyenda_item(_punto(AZUL, f"2px solid {AZUL}", relleno=False), "Rondín sugerido"),
+        _leyenda_item(rx.box(width="8px", height="8px", border_radius="2px", background="#d4d4d8"), "Cámara"),
         spacing="3",
         wrap="wrap",
     )
@@ -82,26 +88,28 @@ def _leyenda(calor: bool = False) -> rx.Component:
 def _aviso_simulados() -> rx.Component:
     return rx.cond(
         State.hay_datos_simulados,
-        rx.badge("Datos simulados: no son cifras oficiales de incidencia", color_scheme="amber", variant="soft"),
+        rx.text("Datos de demostración", size="1", color=TEXTO_3),
     )
 
 
 def mapa_en_vivo() -> rx.Component:
     return tarjeta(
         rx.vstack(
-            titulo("Mérida, Yucatán · alertas en vivo", _aviso_simulados()),
+            titulo("Mapa", _aviso_simulados()),
             _mapa(
                 alertas=State.puntos_mapa,
+                unidades=State.unidades,
                 patrullas=State.atenciones,
                 foco=State.mapa_foco,
                 seleccion=State.seleccion_id,
                 on_alerta=State.abrir_alerta,
-                altura="460px",
+                altura="440px",
             ),
             _leyenda(),
             spacing="3",
             width="100%",
-        )
+        ),
+        padding="12px",
     )
 
 
@@ -109,22 +117,18 @@ def mapa_de_calor() -> rx.Component:
     return tarjeta(
         rx.vstack(
             titulo(
-                "Mérida, Yucatán · mapa de calor",
+                "Mapa de calor",
                 rx.hstack(
                     _aviso_simulados(),
-                    rx.text(State.total_historico, " eventos en el periodo", size="2", color=TEXTO_3),
+                    rx.text(State.total_historico, " eventos en el periodo", size="1", color=TEXTO_3),
                     spacing="3",
                     align="center",
                 ),
             ),
             _mapa(calor=State.puntos_calor, altura="420px"),
             _leyenda(calor=True),
-            rx.text(
-                "Más claro = más alertas en esa zona. Solo se usan ubicación, tipo y hora del evento.",
-                size="1",
-                color=TEXTO_3,
-            ),
             spacing="3",
             width="100%",
-        )
+        ),
+        padding="12px",
     )

@@ -79,6 +79,8 @@ class EventoDetectado(_Base, table=True):
     fecha_deteccion: datetime = Field(sa_column=_ts(index=True))
     recibido_en: datetime = Field(default_factory=ahora_utc, sa_column=_ts())
     validado_en: datetime | None = Field(default=None, sa_column=_ts(nullable=True))
+    # Se llena cuando la unidad enviada llega al lugar: caso atendido y resuelto.
+    resuelto_en: datetime | None = Field(default=None, sa_column=_ts(nullable=True))
 
 
 class DespachoInteroperable(_Base, table=True):

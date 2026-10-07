@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any
 
 from sqlmodel import col, select
@@ -16,9 +17,30 @@ from .mapeo import despacho_a_dto
 IP_NODO_INTERNO = "127.0.0.1"
 
 
+@dataclass(frozen=True, slots=True)
+class Federacion:
+    """Lo necesario para completar un despacho ya emitido (fase en segundo plano)."""
+
+    despacho_id: int
+    dependencia: Dependencia
+    mensaje: xroad.MensajeFirmado
+    payload: dict[str, Any]
+
+
 def crear_despacho(datos: DespachoIn, *, ip_origen: str) -> DespachoOut:
-    """Flujo en tres fases para que cada transición quede persistida aunque falle
-    la siguiente: emitir (enviado) -> federar -> confirmar con acuse."""
+    """Flujo completo y síncrono: emitir (enviado) -> federar -> confirmar con acuse."""
+    _, federacion = emitir_despacho(datos, ip_origen=ip_origen)
+    return completar_despacho(federacion)
+
+
+def completar_despacho(federacion: Federacion) -> DespachoOut:
+    """Federa y confirma un despacho emitido. Si falla, queda `enviado` (reintentable)."""
+    return _federar_y_confirmar(federacion.despacho_id, federacion.dependencia, federacion.mensaje, federacion.payload)
+
+
+def emitir_despacho(datos: DespachoIn, *, ip_origen: str) -> tuple[DespachoOut, Federacion]:
+    """Fase rápida: valida, firma y deja el despacho `enviado` con su registro en la
+    bitácora. Cada transición queda persistida aunque falle la siguiente."""
     dependencia = datos.dependencia_destino
 
     with transaccion() as session:
@@ -73,8 +95,10 @@ def crear_despacho(datos: DespachoIn, *, ip_origen: str) -> DespachoOut:
                 "payload_sha256": mensaje.payload_sha256,
             },
         )
+        session.flush()
+        emitido = despacho_a_dto(despacho)
 
-    return _federar_y_confirmar(despacho_id, dependencia, mensaje, payload)
+    return emitido, Federacion(despacho_id, dependencia, mensaje, payload)
 
 
 def reintentar_despacho(despacho_id: int, *, operador_id: str, ip_origen: str) -> DespachoOut:

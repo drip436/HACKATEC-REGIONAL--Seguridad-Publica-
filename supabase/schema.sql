@@ -53,6 +53,7 @@ CREATE TABLE IF NOT EXISTS eventos_detectados (
     fecha_deteccion      TIMESTAMPTZ  NOT NULL,
     recibido_en          TIMESTAMPTZ  NOT NULL,
     validado_en          TIMESTAMPTZ,
+    resuelto_en          TIMESTAMPTZ,            -- la unidad llegó: caso atendido y resuelto
     CONSTRAINT ck_eventos_detectados_tipo_evento
         CHECK (tipo_evento IN ('traspaso_perimetro', 'aglomeracion', 'objeto_abandonado', 'merodeo')),
     CONSTRAINT ck_eventos_detectados_nivel_prioridad
@@ -125,6 +126,9 @@ DROP TRIGGER IF EXISTS trg_bitacora_no_truncate ON bitacora_auditoria;
 CREATE TRIGGER trg_bitacora_no_truncate
     BEFORE TRUNCATE ON bitacora_auditoria
     FOR EACH STATEMENT EXECUTE FUNCTION fn_bitacora_append_only();
+
+-- Bases creadas antes de existir la columna (el backend también lo hace al arrancar).
+ALTER TABLE eventos_detectados ADD COLUMN IF NOT EXISTS resuelto_en TIMESTAMPTZ;
 
 -- -----------------------------------------------------------------------------
 -- 4b. Atención en campo: unidad (patrulla simulada) enviada al lugar del evento

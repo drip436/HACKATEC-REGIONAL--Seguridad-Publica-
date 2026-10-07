@@ -21,6 +21,7 @@ ESTADOS = {
     "validado": "Validado",
     "confirmado": "Despachado",
     "descartado": "Descartado",
+    "resuelto": "Atendido / Resuelto",
 }
 
 # Etiqueta en pantalla -> valor de `Dependencia` en el backend.
@@ -50,6 +51,7 @@ class Cuadrante(TypedDict):
 class Alerta(TypedDict):
     id: str
     camara_id: str
+    lugar: str  # nombre de la cámara (o su código si aún no está en el inventario)
     tipo: str
     severidad: str
     confianza: float
@@ -67,6 +69,17 @@ class Alerta(TypedDict):
     sev_txt: str
     estado_txt: str
     confianza_txt: str
+
+
+class Unidad(TypedDict):
+    """Patrulla de la flota (simulada): libre en su base o en camino a un evento."""
+
+    id: str
+    base: str
+    lat: float
+    lng: float
+    estado: str  # libre | en_camino
+    evento_id: str
 
 
 class Atencion(TypedDict):
@@ -118,6 +131,7 @@ class EntradaBitacora(TypedDict):
 ALERTA_VACIA: Alerta = {
     "id": "",
     "camara_id": "",
+    "lugar": "",
     "tipo": "",
     "severidad": "",
     "confianza": 0.0,

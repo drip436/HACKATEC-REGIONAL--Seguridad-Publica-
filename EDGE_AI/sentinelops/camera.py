@@ -12,6 +12,11 @@ import numpy as np
 
 LOGGER = logging.getLogger(__name__)
 
+# Streams de red (IP Webcam, RTSP...): sin estos límites OpenCV puede quedarse ~30 s
+# esperando a una cámara que no responde, sin atender las señales de cierre.
+_TIMEOUT_STREAM_MS = 5000
+_REINTENTOS_STREAM = 3
+
 
 class CameraError(RuntimeError):
     """La cámara no está disponible o dejó de entregar frames."""
@@ -42,6 +47,7 @@ class Camera:
         self._is_file = isinstance(index, str) and Path(index).is_file()
         self._frame_interval = 0.0
         self._next_frame_at = 0.0
+        self._is_stream = isinstance(index, str) and "://" in index
 
     def open(self) -> None:
         """Abre el dispositivo y verifica que entregue al menos un frame.
@@ -49,7 +55,14 @@ class Camera:
         `isOpened()` devuelve True con algunos drivers aunque el dispositivo
         esté ocupado por otro proceso, así que la validación real es leer.
         """
-        capture = cv2.VideoCapture(self._index)
+        if self._is_stream:
+            capture = cv2.VideoCapture(
+                self._index,
+                cv2.CAP_FFMPEG,
+                [cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, _TIMEOUT_STREAM_MS, cv2.CAP_PROP_READ_TIMEOUT_MSEC, _TIMEOUT_STREAM_MS],
+            )
+        else:
+            capture = cv2.VideoCapture(self._index)
         if not capture.isOpened():
             capture.release()
             raise CameraError(
@@ -110,6 +123,10 @@ class Camera:
                 return frame
 
             self._consecutive_failures += 1
+            if self._is_stream and self._consecutive_failures >= self._max_failures:
+                # Señal caída a media transmisión: reabrir antes de rendirse.
+                if self._reconectar():
+                    continue
             LOGGER.warning(
                 "Frame inválido (%d/%d consecutivos)",
                 self._consecutive_failures,
@@ -120,6 +137,20 @@ class Camera:
                     f"La fuente {self._index!r} falló "
                     f"{self._consecutive_failures} lecturas consecutivas."
                 )
+
+    def _reconectar(self) -> bool:
+        for intento in range(1, _REINTENTOS_STREAM + 1):
+            LOGGER.warning("Señal perdida; reconectando (intento %d/%d)…", intento, _REINTENTOS_STREAM)
+            if self._capture is not None:
+                self._capture.release()
+                self._capture = None
+            time.sleep(min(2.0 * intento, 5.0))
+            try:
+                self.open()
+                return True
+            except CameraError as error:
+                LOGGER.warning("%s", error)
+        return False
 
     def release(self) -> None:
         if self._capture is not None:

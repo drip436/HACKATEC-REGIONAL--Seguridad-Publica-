@@ -10,30 +10,29 @@ from datetime import datetime, timedelta
 
 from .modelos import Camara, EventoHistorico
 
-# Dispersión de los eventos alrededor de su cámara (~130 m).
-_DISPERSION = 0.0012
+# Los eventos caen en la coordenada exacta de su cámara (sin dispersión aleatoria).
+_DISPERSION = 0.0
 
 
 def _cam(id_: str, nombre: str, lat: float, lng: float, activa: bool = True) -> Camara:
     return {"id": id_, "nombre": nombre, "lat": lat, "lng": lng, "activa": activa}
 
 
-# Cámaras de DEMOSTRACIÓN en espacios públicos de Mérida (ubicaciones aproximadas).
-# Las alertas que el simulador genera aquí son sintéticas: no son datos
-# oficiales de incidencia delictiva de esas zonas.
+# Cámaras de DEMOSTRACIÓN dentro del campus del Instituto Tecnológico de Mérida
+# (límites de OpenStreetMap: lat 21.0105–21.0139, lng -89.6241–-89.6199). Las
+# ubicaciones son aproximadas y las alertas que el simulador genera son sintéticas.
 CAMARAS: list[Camara] = [
-    _cam("CAM-MID-PLAZA-GRANDE", "Plaza Grande (Centro)", 20.96706, -89.62373),
-    _cam("CAM-MID-SANTA-LUCIA", "Parque de Santa Lucía", 20.97055, -89.62186),
-    _cam("CAM-MID-MERCADO", "Mercado Lucas de Gálvez", 20.96171, -89.62196),
-    _cam("CAM-MID-LA-PLANCHA", "Gran Parque La Plancha", 20.97440, -89.61760),
-    _cam("CAM-MID-CAME", "Terminal CAME", 20.96560, -89.62930, activa=False),
-    _cam("CAM-MID-MONTEJO", "Monumento a la Patria (Paseo de Montejo)", 20.98977, -89.61695),
+    _cam("CAM-ITM-NORTE", "Tecnológico · zona norte", 21.01330, -89.62200),
+    _cam("CAM-ITM-SUR", "Tecnológico · zona sur", 21.01100, -89.62210),
+    _cam("CAM-ITM-ORIENTE", "Tecnológico · zona oriente", 21.01220, -89.62040),
+    _cam("CAM-ITM-PONIENTE", "Tecnológico · zona poniente", 21.01210, -89.62350),
+    _cam("CAM-ITM-CENTRO", "Tecnológico · área central", 21.01250, -89.62190, activa=False),
 ]
 CODIGOS_DEMO = frozenset(c["id"] for c in CAMARAS)
 
 # Peso relativo de cada cámara y de cada hora: sesga el histórico para que
 # existan franjas y zonas críticas reconocibles.
-_PESO_CAMARA = [1, 2, 1, 3, 1, 4]
+_PESO_CAMARA = [3, 2, 1, 4, 1]
 _PESO_HORA = [1, 1, 1, 1, 1, 1, 2, 4, 5, 3, 2, 2, 4, 5, 4, 2, 2, 4, 7, 9, 8, 5, 3, 2]
 _TIPOS = ["traspaso_perimetro", "aglomeracion", "merodeo", "objeto_abandonado"]
 _PESO_TIPO = [5, 3, 2, 1]

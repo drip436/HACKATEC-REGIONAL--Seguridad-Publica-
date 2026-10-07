@@ -19,6 +19,7 @@ from .modelos import (
     Alerta,
     Atencion,
     Camara,
+    Unidad,
     Cuadrante,
     EntradaBitacora,
     EventoHistorico,
@@ -137,6 +138,8 @@ class State(rx.State):
 
     # Cámara vinculada (sensor Edge AI lanzado por el backend) y su video anotado.
     cam_vinculada: bool = False
+    cam_estado: str = "sin_camara"  # conectando | en_linea | reconectando | detenida
+    cam_intento: int = 0
     cam_activa: bool = False
     cam_nombre: str = ""
     cam_fuente: str = ""
@@ -159,6 +162,13 @@ class State(rx.State):
     form_lat: str = str(campus.CENTRO_DEFECTO[0])
     form_lng: str = str(campus.CENTRO_DEFECTO[1])
     vinculando: bool = False
+    # Geolocalización automática del navegador al abrir el formulario.
+    ubicacion_estado: str = ""  # buscando | lista | sin_permiso
+    ubicacion_precision_m: int = 0
+
+    # Flota de patrullas (simulada): libres en su base o en camino.
+    unidades: list[Unidad] = []
+    panel_tab: str = "alertas"
 
     # ---- Selección y KPIs -------------------------------------------------
 
@@ -241,7 +251,7 @@ class State(rx.State):
                         "franja": franja,
                         "eventos": conteo[(i, franja)],
                         # Secuencial de un solo tono: más eventos, más intenso.
-                        "color": f"rgba(56, 189, 248, {0.06 + 0.94 * conteo[(i, franja)] / maximo:.2f})",
+                        "color": f"rgba(91, 108, 240, {0.06 + 0.94 * conteo[(i, franja)] / maximo:.2f})",
                     }
                     for franja in franjas
                 ],
@@ -333,7 +343,8 @@ class State(rx.State):
         self.centro = campus.centro_de(camaras)
         self.cuadrantes = campus.calcular_cuadrantes(camaras)
         self.alertas = [
-            {**a, "cuadrante": campus.cuadrante_de(a["lat"], a["lng"], self.cuadrantes)} for a in self.alertas
+            {**a, "cuadrante": campus.cuadrante_de(a["lat"], a["lng"], self.cuadrantes), "lugar": self._lugar(a["camara_id"])}
+            for a in self.alertas
         ]
         self._fijar_historico(self.historico)
 
@@ -342,11 +353,15 @@ class State(rx.State):
             {**e, "cuadrante": campus.cuadrante_de(e["lat"], e["lng"], self.cuadrantes)} for e in historico
         ]
 
+    def _lugar(self, camara_id: str) -> str:
+        return next((c["nombre"] for c in self.camaras if c["id"] == camara_id), camara_id)
+
     def _agregar_alerta(self, evento: dict, en_vivo: bool = False):
         alerta = normalizar_alerta(evento)
         if not alerta["id"] or self._indice(alerta["id"]) >= 0:
             return
         alerta["cuadrante"] = campus.cuadrante_de(alerta["lat"], alerta["lng"], self.cuadrantes)
+        alerta["lugar"] = self._lugar(alerta["camara_id"])
         self.alertas.insert(0, alerta)
         del self.alertas[MAX_ALERTAS:]
         self._registrar(
@@ -388,6 +403,7 @@ class State(rx.State):
                     self._agregar_alerta(evento)
                 self._fijar_historico(await api_client.obtener_historico())
                 self.atenciones = await api_client.obtener_atenciones()
+                self.unidades = await api_client.obtener_unidades()
             except api_client.ErrorAPI as error:
                 self.conexion = "Sin API"
                 yield rx.toast.error(str(error))
@@ -458,6 +474,15 @@ class State(rx.State):
                 if aviso:
                     # Fuera del `async with`: no se emite con el estado bloqueado.
                     yield rx.toast.success(aviso)
+                if clase == "atencion":
+                    # Una unidad salió o llegó: se relee la flota (libre / en camino).
+                    try:
+                        unidades = await api_client.obtener_unidades()
+                    except api_client.ErrorAPI:
+                        unidades = None
+                    if unidades is not None:
+                        async with self:
+                            self.unidades = unidades
                 if sensor_nuevo:
                     # El backend autorregistra sensores desconocidos: se relee el inventario.
                     try:
@@ -537,6 +562,23 @@ class State(rx.State):
         return puntos
 
     @rx.var
+    def unidad_cercana_sel(self) -> str:
+        """Para una alerta pendiente: qué patrulla libre saldría y a qué distancia."""
+        alerta = self.alerta_sel
+        if not alerta["id"] or self._caso(alerta["id"]) != "pendiente" or alerta["estado"] != "pendiente":
+            return ""
+        libres = [u for u in self.unidades if u["estado"] == "libre"]
+        if not libres:
+            return "Sin unidades libres en este momento"
+        cercana = min(libres, key=lambda u: campus.distancia_m(u["lat"], u["lng"], alerta["lat"], alerta["lng"]))
+        km = campus.distancia_m(cercana["lat"], cercana["lng"], alerta["lat"], alerta["lng"]) / 1000
+        return f"{cercana['id']} ({cercana['base']}) · {km:.1f} km en línea recta"
+
+    @rx.var
+    def total_resueltas(self) -> int:
+        return sum(a["estado"] == "resuelto" for a in self.alertas)
+
+    @rx.var
     def caso_sel(self) -> str:
         return self._caso(self.seleccion_id) if self.seleccion_id else ""
 
@@ -572,6 +614,10 @@ class State(rx.State):
             return
         self._aplicar_atencion(atencion)
         self._aplicar_cambio(alerta["id"], estado="validado")
+        try:
+            self.unidades = await api_client.obtener_unidades()
+        except api_client.ErrorAPI:
+            pass
         self.procesando = False
         self.modal_abierto = False  # el mapa encuadra la ruta de la unidad por su cuenta
         segundos = max(0, round((atencion["llegada_ms"] - atencion["inicio_ms"]) / 1000))
@@ -589,13 +635,16 @@ class State(rx.State):
 
     def _aplicar_estado_camara(self, camara: dict, edge: dict | None):
         self.cam_vinculada = bool(camara.get("vinculada"))
+        self.cam_estado = camara.get("estado") or ("sin_camara" if not self.cam_vinculada else "conectando")
+        self.cam_intento = int(camara.get("intento") or 0)
         self.cam_activa = bool(camara.get("activa"))
         self.cam_nombre = camara.get("nombre") or ""
         self.cam_fuente = camara.get("fuente") or ""
         self.cam_lat = float(camara.get("lat") or 0.0)
         self.cam_lng = float(camara.get("lng") or 0.0)
-        caido = self.cam_vinculada and not self.cam_activa
-        self.cam_error = " / ".join(camara.get("ultimas_lineas", [])[-3:]) if caido else ""
+        # Solo se muestra el log si el supervisor ya se rindió (tras varios reintentos).
+        detenida = self.cam_estado == "detenida"
+        self.cam_error = " / ".join(camara.get("ultimas_lineas", [])[-3:]) if detenida else ""
         vigente = (
             self.cam_activa
             and bool(edge)
@@ -632,8 +681,15 @@ class State(rx.State):
                 self._vigia = ""
 
     @rx.event
+    def set_panel_tab(self, tab: str | list[str]):
+        self.panel_tab = str(tab)
+
+    @rx.event
     def abrir_dialogo_camara(self):
+        """Abre el formulario y pide la ubicación al navegador sin que haya que escribirla."""
         self.dialogo_camara = True
+        self.ubicacion_estado = "buscando"
+        return State.usar_mi_ubicacion
 
     @rx.event
     def cambiar_dialogo_camara(self, abierto: bool):
@@ -663,10 +719,12 @@ class State(rx.State):
     @rx.event
     def usar_mi_ubicacion(self):
         """Pide al navegador la ubicación actual (requiere permiso del usuario)."""
+        self.ubicacion_estado = "buscando"
         return rx.call_script(
             "new Promise((ok) => navigator.geolocation"
             " ? navigator.geolocation.getCurrentPosition("
-            "(p) => ok([p.coords.latitude, p.coords.longitude]), () => ok(null), {timeout: 10000})"
+            "(p) => ok([p.coords.latitude, p.coords.longitude, p.coords.accuracy]), () => ok(null),"
+            " {enableHighAccuracy: true, timeout: 8000, maximumAge: 60000})"
             " : ok(null))",
             callback=State.recibir_ubicacion,
         )
@@ -674,8 +732,13 @@ class State(rx.State):
     @rx.event
     def recibir_ubicacion(self, coords: list[float] | None):
         if not coords:
-            return rx.toast.warning("El navegador no compartió la ubicación; escríbela a mano.")
+            # Sin permiso (o sin GPS/Wi-Fi): se queda en el campus y se puede ajustar a mano.
+            self.ubicacion_estado = "sin_permiso"
+            self.form_lat, self.form_lng = str(campus.CENTRO_DEFECTO[0]), str(campus.CENTRO_DEFECTO[1])
+            return
         self.form_lat, self.form_lng = f"{coords[0]:.6f}", f"{coords[1]:.6f}"
+        self.ubicacion_precision_m = round(coords[2]) if len(coords) > 2 and coords[2] else 0
+        self.ubicacion_estado = "lista"
 
     @rx.event
     async def vincular_camara(self):
@@ -775,7 +838,9 @@ class State(rx.State):
         self._aplicar_cambio(alerta_id, **resultado)
         self.procesando = False
         if resultado["estado"] != "confirmado":
-            yield rx.toast.warning(f"Despacho a {destino} emitido, pero sin acuse. Puedes reintentar.")
+            # La federación sigue en segundo plano; el WebSocket confirmará el acuse.
+            self.modal_abierto = False
+            yield rx.toast.info(f"Despacho a {destino} en curso.")
             return
         self.modal_abierto = False
         self._registrar(

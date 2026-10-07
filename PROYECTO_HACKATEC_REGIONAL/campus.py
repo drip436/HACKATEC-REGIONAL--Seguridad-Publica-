@@ -8,15 +8,16 @@ import math
 
 from .modelos import Camara, Cuadrante
 
-# Vista inicial mientras no haya cámaras registradas: Plaza Grande, Centro de Mérida.
-CENTRO_DEFECTO = [20.96706, -89.62373]
-# Escala de ciudad: se ven el Centro Histórico y el Paseo de Montejo a la vez.
-ZOOM = 14
+# Vista inicial mientras no haya cámaras: Instituto Tecnológico de Mérida
+# (coordenadas de OpenStreetMap).
+CENTRO_DEFECTO = [21.012881, -89.621920]
+# Escala de campus: se ve el Tecnológico completo y las calles de acceso.
+ZOOM = 16
 
-# Media extensión mínima del área (grados, ~1.3 km): evita cuadrantes
-# degenerados con pocas cámaras y deja margen alrededor de las de la orilla.
-_MIN_LAT = 0.012
-_MIN_LNG = 0.012
+# Media extensión mínima del área (grados, ~220 m: medio campus): evita
+# cuadrantes degenerados con pocas cámaras.
+_MIN_LAT = 0.002
+_MIN_LNG = 0.002
 _MARGEN = 1.25
 
 _NOMBRES = ["Q1 · Noroeste", "Q2 · Noreste", "Q3 · Suroeste", "Q4 · Sureste"]
@@ -65,3 +66,11 @@ def zona_de(lat: float, lng: float, camaras: list[Camara], respaldo: str) -> str
     coseno = math.cos(math.radians(lat))
     cercana = min(camaras, key=lambda c: (c["lat"] - lat) ** 2 + ((c["lng"] - lng) * coseno) ** 2)
     return cercana["nombre"]
+
+
+def distancia_m(a_lat: float, a_lng: float, b_lat: float, b_lng: float) -> float:
+    """Distancia en línea recta (haversine), en metros."""
+    lat1, lat2 = math.radians(a_lat), math.radians(b_lat)
+    dlat, dlng = lat2 - lat1, math.radians(b_lng - a_lng)
+    h = math.sin(dlat / 2) ** 2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlng / 2) ** 2
+    return 2 * 6_371_000.0 * math.asin(math.sqrt(h))

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -32,3 +33,14 @@ class AtencionOut(BaseModel):
     despachada_en: datetime
     llegada_estimada: datetime
     llegada_en: datetime | None
+
+
+class UnidadOut(BaseModel):
+    """Patrulla de la flota (simulada): libre en su base o en camino a un evento."""
+
+    id: str
+    base: str
+    lat: float
+    lng: float
+    estado: Literal["libre", "en_camino"]
+    evento_id: int | None = None

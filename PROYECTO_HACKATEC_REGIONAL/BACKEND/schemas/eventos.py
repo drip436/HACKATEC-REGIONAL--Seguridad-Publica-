@@ -121,3 +121,4 @@ class EventoOut(BaseModel):
     fecha_deteccion: datetime
     recibido_en: datetime
     validado_en: datetime | None
+    resuelto_en: datetime | None = None

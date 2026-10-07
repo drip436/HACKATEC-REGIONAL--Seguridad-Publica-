@@ -15,6 +15,7 @@ import signal
 import subprocess
 import sys
 import threading
+import time
 import unicodedata
 from collections import deque
 from dataclasses import dataclass, field
@@ -59,67 +60,80 @@ def codigo_sensor(nombre: str) -> str:
     return f"CAM-MOVIL-{slug}"
 
 
+# Reconexión: esperas entre intentos y cuándo se considera estable un sensor.
+_ESPERAS_S = (2.0, 5.0, 10.0)
+_MAX_INTENTOS = 5
+_ESTABLE_S = 30.0  # vivo este tiempo = conexión buena: el contador de intentos vuelve a 0
+_CONECTANDO_S = 10.0  # primeros segundos tras lanzar: carga del modelo y apertura del video
+_ESPERA_SIGTERM_S = 3.0
+
+
 @dataclass
 class _Proceso:
-    popen: subprocess.Popen[str]
+    comando: list[str]
     sensor_id: str
     nombre: str
-    fuente: str
+    fuente: str  # visible: sin credenciales
     lat: float
     lng: float
     desde: datetime
+    popen: subprocess.Popen[str] | None = None
+    lanzado_en: float = 0.0
+    intento: int = 0
+    reconectando: bool = False
+    agotado: bool = False
+    detener: threading.Event = field(default_factory=threading.Event)
     log: deque[str] = field(default_factory=lambda: deque(maxlen=_MAX_LINEAS_LOG))
 
 
 class SupervisorEdge:
-    def __init__(self) -> None:
-        self._lock = threading.Lock()
-        self._actual: _Proceso | None = None
+    """Lanza, vigila y detiene el sensor de la cámara vinculada.
 
-    def vincular(self, datos: VinculacionIn, *, operador: str, ip_origen: str) -> CamaraVinculadaOut:
-        fuente = str(VIDEO_DEMO) if datos.demo else str(datos.url)
+    `estado()` nunca espera a nada: solo lee la referencia actual. Detener un sensor
+    (que puede tardar segundos si está abriendo una cámara que no responde) ocurre
+    fuera de cualquier lock que `estado()` necesite, así el backend no se congela.
+    """
+
+    def __init__(self) -> None:
+        self._actual: _Proceso | None = None
+        # Serializa vincular/desvincular entre sí; `estado()` no lo usa.
+        self._operacion = threading.Lock()
+
+    def vincular(self, datos: VinculacionIn, fuente: str, *, operador: str, ip_origen: str) -> CamaraVinculadaOut:
+        """`fuente` ya fue probada (o es el video de demo): el sensor arranca sobre algo que responde."""
         fuente_visible = "video de demostración" if datos.demo else sin_credenciales(fuente)
         sensor_id = codigo_sensor(datos.nombre)
-        comando = [
-            _python_edge(),
-            "-m",
-            "sentinelops",
-            f"--source={fuente}",  # con "=": una URL nunca se interpreta como otra opción
-            "--no-preview",
-            "--zona-completa",
-            # Un incidente que sigue en cuadro no debe generar una alerta cada 5 s; una
-            # escalada (p. ej. merodeo -> asalto) se avisa igual al instante.
-            "--cooldown=45",
-            f"--sensor-id={sensor_id}",
-            f"--ubicacion={datos.nombre}",
-            f"--lat={datos.lat}",
-            f"--lng={datos.lng}",
-            f"--backend-url={get_config().api_url.rstrip('/')}/api/v1/eventos",
-        ]
-        with self._lock:
-            self._detener()
-            popen = subprocess.Popen(  # noqa: S603 (lista de argumentos, sin shell)
-                comando,
-                cwd=DIR_EDGE,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                bufsize=1,
-                start_new_session=True,  # grupo propio: se detiene completo
-                env={**os.environ, "PYTHONUNBUFFERED": "1"},
-            )
-            proceso = _Proceso(
-                popen=popen,
-                sensor_id=sensor_id,
-                nombre=datos.nombre,
-                fuente=fuente_visible,
-                lat=datos.lat,
-                lng=datos.lng,
-                desde=ahora_utc(),
-            )
-            threading.Thread(target=_leer_log, args=(proceso,), name="edge-log", daemon=True).start()
-            self._actual = proceso
-        LOGGER.info("Sensor lanzado (pid %d) para %s", popen.pid, fuente_visible)
+        nuevo = _Proceso(
+            comando=[
+                _python_edge(),
+                "-m",
+                "sentinelops",
+                f"--source={fuente}",  # con "=": una URL nunca se interpreta como otra opción
+                "--no-preview",
+                "--zona-completa",
+                # Un incidente que sigue en cuadro no debe generar una alerta cada 5 s; una
+                # escalada (p. ej. merodeo -> asalto) se avisa igual al instante.
+                "--cooldown=45",
+                f"--sensor-id={sensor_id}",
+                f"--ubicacion={datos.nombre}",
+                f"--lat={datos.lat}",
+                f"--lng={datos.lng}",
+                f"--backend-url={get_config().api_url.rstrip('/')}/api/v1/eventos",
+            ],
+            sensor_id=sensor_id,
+            nombre=datos.nombre,
+            fuente=fuente_visible,
+            lat=datos.lat,
+            lng=datos.lng,
+            desde=ahora_utc(),
+        )
+        with self._operacion:
+            anterior, self._actual = self._actual, nuevo
+            if anterior is not None:
+                _detener(anterior)  # antes de lanzar: el nuevo necesita el puerto del video
+            _lanzar(nuevo)
+            threading.Thread(target=_vigilar, args=(nuevo,), name="edge-vigia", daemon=True).start()
+        LOGGER.info("Sensor lanzado para %s", fuente_visible)
         _auditar(
             AccionAuditoria.CAMARA_VINCULADA,
             operador,
@@ -129,22 +143,34 @@ class SupervisorEdge:
         return self.estado()
 
     def desvincular(self, *, operador: str | None = None, ip_origen: str = "127.0.0.1") -> CamaraVinculadaOut:
-        with self._lock:
-            actual = self._actual
-            self._detener()
+        with self._operacion:
+            actual, self._actual = self._actual, None
+            if actual is not None:
+                _detener(actual)
         if actual is not None and operador is not None:
             _auditar(AccionAuditoria.CAMARA_DESVINCULADA, operador, ip_origen, {"sensor_id": actual.sensor_id})
         return self.estado()
 
     def estado(self) -> CamaraVinculadaOut:
-        with self._lock:
-            actual = self._actual
+        actual = self._actual  # lectura atómica de la referencia: sin locks
         if actual is None:
             return CamaraVinculadaOut(vinculada=False)
-        codigo = actual.popen.poll()
+        popen = actual.popen
+        codigo = popen.poll() if popen is not None else None
+        vivo = popen is not None and codigo is None
+        if actual.agotado:
+            estado = "detenida"
+        elif actual.reconectando or (popen is not None and not vivo):
+            estado = "reconectando"
+        elif vivo and time.monotonic() - actual.lanzado_en >= _CONECTANDO_S:
+            estado = "en_linea"
+        else:
+            estado = "conectando"
         return CamaraVinculadaOut(
             vinculada=True,
-            activa=codigo is None,
+            estado=estado,
+            intento=actual.intento,
+            activa=vivo,
             sensor_id=actual.sensor_id,
             nombre=actual.nombre,
             fuente=actual.fuente,
@@ -155,25 +181,70 @@ class SupervisorEdge:
             ultimas_lineas=list(actual.log)[-8:],
         )
 
-    def _detener(self) -> None:
-        actual, self._actual = self._actual, None
-        if actual is None or actual.popen.poll() is not None:
+
+def _lanzar(proceso: _Proceso) -> None:
+    proceso.popen = subprocess.Popen(  # noqa: S603 (lista de argumentos, sin shell)
+        proceso.comando,
+        cwd=DIR_EDGE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
+        start_new_session=True,  # grupo propio: se detiene completo
+        env={**os.environ, "PYTHONUNBUFFERED": "1"},
+    )
+    proceso.lanzado_en = time.monotonic()
+    proceso.reconectando = False
+    threading.Thread(target=_leer_log, args=(proceso, proceso.popen), name="edge-log", daemon=True).start()
+
+
+def _vigilar(proceso: _Proceso) -> None:
+    """Relanza el sensor si termina sin que se lo pidieran (cámara caída, red, etc.)."""
+    while not proceso.detener.is_set():
+        popen = proceso.popen
+        if popen is None:
+            return
+        popen.wait()
+        if proceso.detener.is_set():
+            return
+        vivio = time.monotonic() - proceso.lanzado_en
+        proceso.intento = 1 if vivio >= _ESTABLE_S else proceso.intento + 1
+        if proceso.intento > _MAX_INTENTOS:
+            proceso.agotado = True
+            LOGGER.warning("Sensor %s detenido tras %d intentos de reconexión", proceso.sensor_id, _MAX_INTENTOS)
+            return
+        proceso.reconectando = True
+        espera = _ESPERAS_S[min(proceso.intento - 1, len(_ESPERAS_S) - 1)]
+        LOGGER.info("Sensor %s terminó (código %s); reconectando en %.0f s (intento %d)", proceso.sensor_id, popen.returncode, espera, proceso.intento)
+        if proceso.detener.wait(espera):
             return
         try:
-            os.killpg(actual.popen.pid, signal.SIGTERM)
-            actual.popen.wait(timeout=8)
-        except subprocess.TimeoutExpired:
-            os.killpg(actual.popen.pid, signal.SIGKILL)
-            actual.popen.wait(timeout=5)
-        except ProcessLookupError:
-            pass
-        LOGGER.info("Sensor detenido (%s)", actual.sensor_id)
+            _lanzar(proceso)
+        except OSError as error:
+            proceso.log.append(f"No se pudo relanzar el sensor: {error}")
 
 
-def _leer_log(proceso: _Proceso) -> None:
+def _detener(proceso: _Proceso) -> None:
+    proceso.detener.set()
+    popen = proceso.popen
+    if popen is None or popen.poll() is not None:
+        return
+    try:
+        os.killpg(popen.pid, signal.SIGTERM)
+        popen.wait(timeout=_ESPERA_SIGTERM_S)
+    except subprocess.TimeoutExpired:
+        # Un sensor bloqueado abriendo una cámara no atiende SIGTERM a tiempo.
+        os.killpg(popen.pid, signal.SIGKILL)
+        popen.wait(timeout=5)
+    except ProcessLookupError:
+        pass
+    LOGGER.info("Sensor detenido (%s)", proceso.sensor_id)
+
+
+def _leer_log(proceso: _Proceso, popen: subprocess.Popen[str]) -> None:
     """Guarda las últimas líneas del sensor: el panel las muestra si algo falla."""
-    assert proceso.popen.stdout is not None
-    for linea in proceso.popen.stdout:
+    assert popen.stdout is not None
+    for linea in popen.stdout:
         linea = linea.rstrip()
         if linea:
             proceso.log.append(linea[-300:])

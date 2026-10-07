@@ -1,40 +1,41 @@
-// Mapa Leaflet de la ciudad: cuadrantes, cámaras, alertas (rojo = pendiente,
-// verde = resuelta), patrullas en camino (azul, animadas por la ruta de calles),
-// rondines sugeridos (anillo azul) y capa de calor.
-// Se usa Leaflet directamente (sin react-leaflet) para exponer a Reflex una
-// API pequeña basada en props.
+// Mapa Leaflet: cámaras, alertas (rojo = abierta, verde = resuelta), patrullas
+// (azul: libres en su base o en camino por la ruta de calles), rondines sugeridos
+// (anillo azul) y capa de calor. Se usa Leaflet directamente (sin react-leaflet)
+// para exponer a Reflex una API pequeña basada en props.
 import { useEffect, useRef } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
-// Toda alerta es un punto rojo de inseguridad; la severidad se lee en el tamaño.
-const ROJO = "#ef4444";
+// Alertas en tonos de rojo: la severidad se lee en el tono, no en el tamaño.
+const ROJO_SEVERIDAD = { critica: "#dc2626", alta: "#ef4444", media: "#f87171", baja: "#fca5a5" };
 const AZUL = "#3b82f6";
 const VERDE = "#22c55e";
 // Una patrulla que ya llegó se sigue viendo en el lugar unos minutos.
 const PATRULLA_VISIBLE_TRAS_LLEGAR_MS = 5 * 60 * 1000;
-const TAMANO_SEVERIDAD = { critica: 20, alta: 17, media: 14, baja: 12 };
 
 const CSS = `
-.so-mapa { width: 100%; border-radius: 16px; background: #0f172a; z-index: 0; }
-.so-mapa .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) brightness(0.85) contrast(0.9) saturate(0.6); }
-.so-mapa .leaflet-tooltip { background: #0f172a; color: #f8fafc; border: 1px solid #334155; box-shadow: none; }
+.so-mapa { width: 100%; border-radius: 6px; background: #18181b; z-index: 0; }
+.so-mapa .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) brightness(0.82) contrast(0.92) saturate(0.45); }
+.so-mapa .leaflet-tooltip { background: #18181b; color: #ececee; border: 1px solid #2a2a2f; border-radius: 4px;
+  box-shadow: none; font: 12px/1.4 Inter, system-ui, sans-serif; }
 .so-mapa .leaflet-tooltip::before { display: none; }
-.so-pulso { display: block; width: 16px; height: 16px; border-radius: 50%; background: var(--c);
-  border: 2px solid #0f172a; box-shadow: 0 0 0 0 var(--c); animation: so-pulso 1.6s ease-out infinite; cursor: pointer; }
-.so-pulso.so-sel { outline: 2px solid #f8fafc; outline-offset: 3px; }
-.so-camara { display: block; width: 12px; height: 12px; border-radius: 3px; background: #e2e8f0; border: 2px solid #0f172a; }
-.so-camara.so-inactiva { background: #475569; }
-.so-rondin { display: block; width: 14px; height: 14px; border-radius: 50%; background: transparent;
-  border: 3px solid ${AZUL}; }
-.so-resuelto { display: block; width: 14px; height: 14px; border-radius: 50%; background: ${VERDE};
-  border: 2px solid #f8fafc; cursor: pointer; }
-.so-patrulla { display: block; width: 18px; height: 18px; border-radius: 50%; background: ${AZUL};
-  border: 3px solid #f8fafc; box-shadow: 0 0 0 0 rgba(59,130,246,.7); animation: so-sirena 1s ease-out infinite; }
-.so-patrulla.so-llego { animation: none; box-shadow: 0 0 0 4px rgba(34,197,94,.45); }
-@keyframes so-sirena { 70% { box-shadow: 0 0 0 12px transparent; } 100% { box-shadow: 0 0 0 0 transparent; } }
-@keyframes so-pulso { 70% { box-shadow: 0 0 0 16px transparent; } 100% { box-shadow: 0 0 0 0 transparent; } }
-@media (prefers-reduced-motion: reduce) { .so-pulso { animation: none; box-shadow: 0 0 0 5px color-mix(in srgb, var(--c) 35%, transparent); } }
+.so-alerta { display: block; width: 11px; height: 11px; border-radius: 50%; background: var(--c);
+  border: 2px solid #f8fafc; cursor: pointer; box-sizing: content-box; }
+.so-alerta.so-sel { box-shadow: 0 0 0 4px rgba(248, 250, 252, 0.28); animation: so-latido 1.8s ease-out infinite; }
+.so-resuelto { display: block; width: 11px; height: 11px; border-radius: 50%; background: ${VERDE};
+  border: 2px solid #f8fafc; cursor: pointer; box-sizing: content-box; }
+.so-camara { display: block; width: 8px; height: 8px; border-radius: 2px; background: #d4d4d8; border: 1px solid #18181b; }
+.so-camara.so-inactiva { background: #52525b; }
+.so-rondin { display: block; width: 9px; height: 9px; border-radius: 50%; border: 2px solid ${AZUL}; background: transparent; }
+.so-unidad { display: block; width: 11px; height: 11px; border-radius: 50%; background: ${AZUL};
+  border: 2px solid #f8fafc; box-sizing: content-box; }
+.so-patrulla { display: block; width: 13px; height: 13px; border-radius: 50%; background: ${AZUL};
+  border: 2px solid #f8fafc; box-sizing: content-box; box-shadow: 0 0 0 0 rgba(59,130,246,.55);
+  animation: so-sirena 1.4s ease-out infinite; }
+.so-patrulla.so-llego { animation: none; box-shadow: 0 0 0 3px rgba(34,197,94,.5); }
+@keyframes so-sirena { 70% { box-shadow: 0 0 0 7px transparent; } 100% { box-shadow: 0 0 0 0 transparent; } }
+@keyframes so-latido { 70% { box-shadow: 0 0 0 7px transparent; } 100% { box-shadow: 0 0 0 4px rgba(248,250,252,.28); } }
+@media (prefers-reduced-motion: reduce) { .so-patrulla, .so-alerta.so-sel { animation: none; } }
 `;
 
 // Distancia aproximada en metros entre [lat, lng]: suficiente para repartir el avance.
@@ -61,11 +62,12 @@ function icono(html, lado) {
 
 export function MapaLeaflet({
   centro,
-  zoom = 17,
+  zoom = 16,
   cuadrantes = [],
   camaras = [],
   alertas = [],
   rondines = [],
+  unidades = [],
   patrullas = [],
   foco = [],
   calor = [],
@@ -92,8 +94,9 @@ export function MapaLeaflet({
       camaras: L.layerGroup().addTo(m),
       rondines: L.layerGroup().addTo(m),
       rutas: L.layerGroup().addTo(m),
-      patrullas: L.layerGroup().addTo(m),
+      unidades: L.layerGroup().addTo(m),
       alertas: L.layerGroup().addTo(m),
+      patrullas: L.layerGroup().addTo(m),
     };
     mapa.current = m;
     const observador = new ResizeObserver(() => m.invalidateSize());
@@ -113,7 +116,7 @@ export function MapaLeaflet({
   useEffect(() => {
     const capa = capas.current.cuadrantes.clearLayers();
     cuadrantes.forEach((q) =>
-      L.polygon(q.coords, { color: "#64748b", weight: 1, dashArray: "4 4", fillColor: "#38bdf8", fillOpacity: 0.04 })
+      L.polygon(q.coords, { color: "#3f3f46", weight: 1, dashArray: "3 5", fill: false })
         .bindTooltip(q.nombre, { sticky: true })
         .addTo(capa),
     );
@@ -123,10 +126,10 @@ export function MapaLeaflet({
     const capa = capas.current.camaras.clearLayers();
     camaras.forEach((c) =>
       L.marker([c.lat, c.lng], {
-        icon: icono(`<span class="so-camara${c.activa ? "" : " so-inactiva"}"></span>`, 12),
+        icon: icono(`<span class="so-camara${c.activa ? "" : " so-inactiva"}"></span>`, 8),
         keyboard: false,
       })
-        .bindTooltip(`${c.id} · ${c.nombre}${c.activa ? "" : " (en revisión)"}`)
+        .bindTooltip(`${c.nombre}${c.activa ? "" : " (fuera de servicio)"}`)
         .addTo(capa),
     );
   }, [camaras]);
@@ -134,19 +137,18 @@ export function MapaLeaflet({
   useEffect(() => {
     const capa = capas.current.alertas.clearLayers();
     alertas.forEach((a) => {
-      const lado = TAMANO_SEVERIDAD[a.severidad] || 14;
       const sel = a.id === seleccion ? " so-sel" : "";
       const resuelto = a.caso === "resuelto";
       const html = resuelto
         ? `<span class="so-resuelto${sel}"></span>`
-        : `<span class="so-pulso${sel}" style="--c:${ROJO};width:${lado}px;height:${lado}px"></span>`;
-      const estado = { pendiente: "pendiente", en_camino: "unidad en camino", resuelto: "atendido y resuelto" }[a.caso] || "";
+        : `<span class="so-alerta${sel}" style="--c:${ROJO_SEVERIDAD[a.severidad] || ROJO_SEVERIDAD.alta}"></span>`;
+      const estado = { pendiente: "pendiente", en_camino: "unidad en camino", resuelto: "atendido / resuelto" }[a.caso] || "";
       L.marker([a.lat, a.lng], {
-        icon: icono(html, resuelto ? 14 : lado),
+        icon: icono(html, 15),
         title: `${a.tipo_txt}, severidad ${a.sev_txt}, ${estado}`,
         zIndexOffset: resuelto ? 600 : 1000,
       })
-        .bindTooltip(`${a.tipo_txt} · ${a.sev_txt} · ${estado} · ${a.camara_id} · ${a.hora}`)
+        .bindTooltip(`${a.tipo_txt} · ${a.sev_txt} · ${estado} · ${a.hora}`)
         .on("click", () => alClic.current && alClic.current(a.id))
         .addTo(capa);
     });
@@ -155,16 +157,27 @@ export function MapaLeaflet({
   useEffect(() => {
     const capa = capas.current.rondines.clearLayers();
     rondines.forEach((r) =>
-      // Por encima de las alertas: un rondín junto a un foco rojo no debe quedar tapado.
-      L.marker([r.lat, r.lng], { icon: icono('<span class="so-rondin"></span>', 14), keyboard: false, zIndexOffset: 2000 })
+      L.marker([r.lat, r.lng], { icon: icono('<span class="so-rondin"></span>', 13), keyboard: false, zIndexOffset: 500 })
         .bindTooltip(r.texto)
         .addTo(capa),
     );
   }, [rondines]);
 
-  // --- Patrullas: se crean/actualizan al cambiar la lista; un bucle de animación
-  // las mueve por su ruta según la hora real de salida y de llegada.
-  const unidades = useRef(new Map());
+  // Patrullas libres en su base (las que van en camino las dibuja la animación).
+  useEffect(() => {
+    const capa = capas.current.unidades.clearLayers();
+    unidades
+      .filter((u) => u.estado === "libre")
+      .forEach((u) =>
+        L.marker([u.lat, u.lng], { icon: icono('<span class="so-unidad"></span>', 15), keyboard: false, zIndexOffset: 1500 })
+          .bindTooltip(`${u.id} · libre · ${u.base}`)
+          .addTo(capa),
+      );
+  }, [unidades]);
+
+  // --- Patrullas en camino: se crean/actualizan al cambiar la lista; un bucle de
+  // animación las mueve por su ruta según la hora real de salida y de llegada.
+  const enRuta = useRef(new Map());
   useEffect(() => {
     const vigentes = new Set();
     const ahora = Date.now();
@@ -173,18 +186,18 @@ export function MapaLeaflet({
       if (llego && ahora - (p.llegada_real_ms || p.llegada_ms) > PATRULLA_VISIBLE_TRAS_LLEGAR_MS) return;
       if (!p.ruta || p.ruta.length < 2) return;
       vigentes.add(p.id);
-      let u = unidades.current.get(p.id);
+      let u = enRuta.current.get(p.id);
       if (!u) {
         const acum = [0];
         for (let i = 1; i < p.ruta.length; i++) acum.push(acum[i - 1] + distancia(p.ruta[i - 1], p.ruta[i]));
         u = {
-          linea: L.polyline(p.ruta, { color: AZUL, weight: 4, opacity: 0.8, dashArray: "8 8" }).addTo(capas.current.rutas),
-          marca: L.marker(p.ruta[0], { icon: icono('<span class="so-patrulla"></span>', 18), zIndexOffset: 3000, keyboard: false })
+          linea: L.polyline(p.ruta, { color: AZUL, weight: 3, opacity: 0.75, dashArray: "6 6" }).addTo(capas.current.rutas),
+          marca: L.marker(p.ruta[0], { icon: icono('<span class="so-patrulla"></span>', 17), zIndexOffset: 3000, keyboard: false })
             .bindTooltip(`${p.unidad} · en camino`)
             .addTo(capas.current.patrullas),
           acum,
         };
-        unidades.current.set(p.id, u);
+        enRuta.current.set(p.id, u);
         // Recién despachada: encuadrar toda la ruta para ver a la unidad acercarse.
         if (!llego && mapa.current && ahora - p.inicio_ms < 15000) {
           mapa.current.flyToBounds(u.linea.getBounds(), { padding: [40, 40], duration: 1.2, maxZoom: 17 });
@@ -193,15 +206,15 @@ export function MapaLeaflet({
       u.datos = p;
       if (llego) {
         u.linea.setStyle({ opacity: 0 });
-        u.marca.setIcon(icono('<span class="so-patrulla so-llego"></span>', 18));
-        u.marca.setTooltipContent(`${p.unidad} · en el lugar: caso resuelto`);
+        u.marca.setIcon(icono('<span class="so-patrulla so-llego"></span>', 17));
+        u.marca.setTooltipContent(`${p.unidad} · en el lugar · caso resuelto`);
       }
     });
-    for (const [id, u] of unidades.current) {
+    for (const [id, u] of enRuta.current) {
       if (!vigentes.has(id)) {
         capas.current.rutas.removeLayer(u.linea);
         capas.current.patrullas.removeLayer(u.marca);
-        unidades.current.delete(id);
+        enRuta.current.delete(id);
       }
     }
   }, [patrullas]);
@@ -210,7 +223,7 @@ export function MapaLeaflet({
     let cuadro;
     const animar = () => {
       const ahora = Date.now();
-      for (const u of unidades.current.values()) {
+      for (const u of enRuta.current.values()) {
         const p = u.datos;
         const fraccion = p.estado === "resuelto" ? 1 : Math.min(1, Math.max(0, (ahora - p.inicio_ms) / (p.llegada_ms - p.inicio_ms)));
         u.marca.setLatLng(sobreRuta(p.ruta, u.acum, fraccion));
@@ -221,7 +234,7 @@ export function MapaLeaflet({
     return () => cancelAnimationFrame(cuadro);
   }, []);
 
-  // Violencia detectada (o unidad enviada): el mapa vuela al lugar.
+  // Violencia detectada: el mapa vuela al lugar.
   useEffect(() => {
     if (foco.length === 3 && mapa.current) mapa.current.flyTo([foco[0], foco[1]], 17, { duration: 1.2 });
   }, [foco[2]]);
@@ -243,11 +256,10 @@ export function MapaLeaflet({
     import("leaflet.heat").then(() => {
       if (!vigente) return;
       L.heatLayer(calor, {
-        radius: 28,
-        blur: 22,
-        minOpacity: 0.35,
+        radius: 16,
+        blur: 14,
+        minOpacity: 0.3,
         max: Math.max(4, calor.length / 40),
-        // Rojo = inseguridad (el azul queda reservado para los rondines).
         gradient: { 0.3: "#7f1d1d", 0.6: "#dc2626", 0.85: "#f97316", 1: "#fde68a" },
       }).addTo(capa);
     });
@@ -259,7 +271,7 @@ export function MapaLeaflet({
   return (
     <>
       <style>{CSS}</style>
-      <div ref={nodo} className="so-mapa" style={{ height: altura }} role="application" aria-label="Mapa de Mérida, Yucatán" />
+      <div ref={nodo} className="so-mapa" style={{ height: altura }} role="application" aria-label="Mapa del Tecnológico de Mérida" />
     </>
   );
 }

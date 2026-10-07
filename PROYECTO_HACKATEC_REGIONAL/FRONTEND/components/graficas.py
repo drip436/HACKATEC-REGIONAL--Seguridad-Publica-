@@ -98,7 +98,6 @@ def matriz_semanal() -> rx.Component:
                 ),
                 width="100%",
             ),
-            rx.text("Cada columna inicia una franja de 3 horas. Más intenso = más eventos.", size="1", color=TEXTO_3),
             spacing="3",
             width="100%",
         )
@@ -127,14 +126,9 @@ def _rondin(rondin, indice) -> rx.Component:
 def rondines_sugeridos() -> rx.Component:
     return tarjeta(
         rx.vstack(
-            titulo("Rondines preventivos sugeridos"),
+            titulo("Rondines sugeridos"),
             rx.foreach(State.rondines, _rondin),
-            rx.text(
-                "Priorización basada en histórico: frecuencia por lugar y franja, con mayor peso a lo reciente. "
-                "Es un apoyo para planear; la asignación la decide el personal.",
-                size="1",
-                color=TEXTO_3,
-            ),
+            rx.text("Según el histórico, con más peso a lo reciente.", size="1", color=TEXTO_3),
             spacing="3",
             width="100%",
         )

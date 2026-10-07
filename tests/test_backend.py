@@ -123,8 +123,11 @@ def test_listar_y_filtrar_eventos(client: Any, op: H, evento_validado: dict[str,
 def test_despacho_completo_queda_confirmado(client: Any, op: H, evento_validado: dict[str, Any]) -> None:
     datos = {"evento_id": evento_validado["id"], "dependencia_destino": "C4 Municipal", "operador_id": "op.martinez"}
     r = client.post(f"{API}/despachos", json=datos, headers=op)
-    assert r.status_code == 201, r.text
-    d = r.json()
+    # Responde al instante con el despacho emitido; la federación sigue en segundo plano
+    # (el TestClient ejecuta esa tarea antes de devolver la respuesta).
+    assert r.status_code == 202, r.text
+    assert r.json()["estado_envio"] == "enviado"
+    d = client.get(f"{API}/despachos/{r.json()['id']}", headers=op).json()
     assert d["estado_envio"] == "confirmado"
     assert d["miembro_xroad"] == "MX/GOB-MUN/C4/DESPACHO"
     assert d["acuse_recibo"]["referencia_jti"] == d["token_jti"]
@@ -158,8 +161,8 @@ def test_reintento_de_despacho_tras_falla(
     monkeypatch.setattr(xroad, "verificar_acuse", _falla)
     datos = {"evento_id": evento_validado["id"], "dependencia_destino": "C4 Municipal", "operador_id": "op.martinez"}
     r = client.post(f"{API}/despachos", json=datos, headers=op)
-    assert r.status_code == 502
-    despacho_id = r.json()["error"]["detalle"]["despacho_id"]
+    assert r.status_code == 202  # la falla ocurre después, en segundo plano
+    despacho_id = r.json()["id"]
     assert client.get(f"{API}/despachos/{despacho_id}", headers=op).json()["estado_envio"] == "enviado"
 
     monkeypatch.undo()

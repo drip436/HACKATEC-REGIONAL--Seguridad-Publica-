@@ -29,7 +29,8 @@ from .modelos import DESTINOS, fecha_hora_local
 MOCK = os.environ.get("SENTINEL_MOCK", "0") == "1"
 PREFIJO = "/api/v1"
 
-_TIMEOUT = 8.0
+# Conectar debe ser inmediato (es el mismo equipo); leer puede tardar si la base es remota.
+_TIMEOUT = httpx.Timeout(connect=3.0, read=20.0, write=10.0, pool=5.0)
 _REINTENTO_WS = 3.0
 _PAGINA = 500
 _MAX_HISTORICO = 3000
@@ -61,8 +62,10 @@ async def _pedir(metodo: str, ruta: str, *, params: dict | None = None, cuerpo: 
     try:
         async with httpx.AsyncClient(base_url=base_url() + PREFIJO, timeout=_TIMEOUT, headers=_cabeceras()) as cliente:
             respuesta = await cliente.request(metodo, ruta, params=params, json=cuerpo)
+    except httpx.TimeoutException as error:
+        raise ErrorAPI("El servidor tardó demasiado en responder; intenta de nuevo.", codigo="timeout") from error
     except httpx.HTTPError as error:
-        raise ErrorAPI(f"Sin conexión con la API ({base_url()}): {error.__class__.__name__}") from error
+        raise ErrorAPI(f"Sin conexión con la API ({base_url()}).", codigo="sin_conexion") from error
     if respuesta.is_success:
         return respuesta.json()
     try:
@@ -91,8 +94,8 @@ def _campos_despacho(despacho: dict) -> dict:
     acuse = despacho.get("acuse_recibo") or {}
     if despacho["estado_envio"] == "confirmado":
         return {"estado": "confirmado", "despacho": destino, "folio": acuse.get("acuse_id") or despacho.get("token_jti") or ""}
-    # Emitido pero sin acuse: la federación falló y se puede reintentar.
-    return {"estado": "validado", "despacho": f"{destino} (sin acuse)", "folio": ""}
+    # Emitido: la federación termina en segundo plano (si falla, se puede reintentar).
+    return {"estado": "validado", "despacho": f"{destino} · en curso", "folio": ""}
 
 
 def _url_evidencia(evidencia: str) -> str:
@@ -124,6 +127,9 @@ def _alerta(evento: dict, despacho: dict | None = None) -> dict:
         alerta["despacho"] = f"Descartada: {evento.get('notas_validacion') or 'falsa alarma'}"
     elif despacho and alerta["estado"] == "validado":
         alerta.update(_campos_despacho(despacho))
+    if evento.get("resuelto_en"):
+        # La unidad llegó: el caso queda cerrado aunque también se haya despachado.
+        alerta["estado"] = "resuelto"
     return alerta
 
 
@@ -322,6 +328,13 @@ async def atender(evento_id: str, operador: str) -> dict:
     if MOCK:
         raise ErrorAPI("La atención en campo necesita el backend (modo simulado activo).")
     return _atencion(await _pedir("POST", "/atenciones", cuerpo={"evento_id": int(evento_id), "operador_id": operador}))
+
+
+async def obtener_unidades() -> list[dict]:
+    """Patrullas (simuladas): {id, base, lat, lng, estado, evento_id}."""
+    if MOCK:
+        return []
+    return [{**u, "evento_id": str(u["evento_id"]) if u.get("evento_id") else ""} for u in await _pedir("GET", "/unidades")]
 
 
 async def obtener_atenciones() -> list[dict]:

@@ -79,6 +79,7 @@ def inicializar_bd() -> None:
             return
         engine = rx.model.get_engine()
         SQLModel.metadata.create_all(engine)
+        _migrar(engine)
         sentencias = {
             "sqlite": _TRIGGERS_SQLITE,
             "postgresql": _TRIGGERS_POSTGRES,
@@ -91,6 +92,27 @@ def inicializar_bd() -> None:
                            engine.dialect.name)
         _inicializada = True
         logger.info("Base de datos lista (%s).", engine.dialect.name)
+
+
+def _migrar(engine: sa.Engine) -> None:
+    """Cambios de esquema sobre tablas ya existentes (create_all no altera tablas). Idempotente."""
+    columnas = {c["name"] for c in sa.inspect(engine).get_columns("eventos_detectados")}
+    with engine.begin() as conn:
+        if "resuelto_en" not in columnas:
+            tipo = "TIMESTAMP WITH TIME ZONE" if engine.dialect.name == "postgresql" else "DATETIME"
+            conn.execute(sa.text(f"ALTER TABLE eventos_detectados ADD COLUMN resuelto_en {tipo}"))
+            logger.info("Migración: columna eventos_detectados.resuelto_en agregada.")
+        # Eventos cuya unidad ya había llegado antes de existir la columna.
+        conn.execute(
+            sa.text(
+                "UPDATE eventos_detectados SET resuelto_en = ("
+                " SELECT a.llegada_en FROM atenciones_campo a"
+                " WHERE a.evento_id = eventos_detectados.id AND a.estado = 'resuelto')"
+                " WHERE resuelto_en IS NULL AND EXISTS ("
+                " SELECT 1 FROM atenciones_campo a"
+                " WHERE a.evento_id = eventos_detectados.id AND a.estado = 'resuelto')"
+            )
+        )
 
 
 @contextmanager

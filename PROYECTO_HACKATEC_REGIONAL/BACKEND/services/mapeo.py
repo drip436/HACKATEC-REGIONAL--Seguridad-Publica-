@@ -56,6 +56,7 @@ def evento_a_dto(e: EventoDetectado, sensor_codigo: str) -> EventoOut:
         fecha_deteccion=a_utc(e.fecha_deteccion),
         recibido_en=a_utc(e.recibido_en),
         validado_en=a_utc(e.validado_en) if e.validado_en else None,
+        resuelto_en=a_utc(e.resuelto_en) if e.resuelto_en else None,
     )
 
 

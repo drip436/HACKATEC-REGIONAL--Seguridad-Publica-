@@ -6,6 +6,7 @@ from ..config import get_settings
 from ..realtime import get_manager
 from .manejadores_error import registrar_manejadores
 from .rutas_atenciones import router as atenciones_router
+from .rutas_atenciones import router_unidades as unidades_router
 from .rutas_auditoria import router as auditoria_router
 from .rutas_camaras import router as camaras_router
 from .rutas_despachos import router as despachos_router
@@ -54,6 +55,7 @@ def crear_api() -> FastAPI:
         auditoria_router,
         sensores_router,
         atenciones_router,
+        unidades_router,
         camaras_router,
     )
     for router in routers:

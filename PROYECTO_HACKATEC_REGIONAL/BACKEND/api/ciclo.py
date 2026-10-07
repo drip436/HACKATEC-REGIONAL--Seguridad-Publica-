@@ -14,14 +14,16 @@ from ..services import atenciones
 from ..services.vinculacion import SUPERVISOR
 
 LOGGER = logging.getLogger("sentinelops.ciclo")
-_INTERVALO_S = 1.0
+_INTERVALO_S = 2.0
 
 
 async def _vigilar_llegadas() -> None:
     while True:
         try:
-            for atencion in await run_in_threadpool(atenciones.resolver_llegadas):
+            for resultado in await run_in_threadpool(atenciones.resolver_llegadas):
+                atencion = resultado.atencion
                 LOGGER.info("Unidad %s llegó: evento %d resuelto", atencion.unidad, atencion.evento_id)
+                await get_manager().broadcast("evento.actualizado", resultado.evento)
                 await get_manager().broadcast("atencion.actualizada", atencion)
         except Exception:  # noqa: BLE001 - la vigilancia no debe morir por un error puntual
             LOGGER.exception("Error al resolver llegadas")

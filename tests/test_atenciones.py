@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import subprocess
+import threading
 from datetime import timedelta
 from typing import Any
 
@@ -72,15 +74,17 @@ def test_la_unidad_llega_y_el_caso_queda_resuelto(
     atencion = client.post(
         f"{API}/atenciones", json={"evento_id": evento["id"], "operador_id": "op.martinez"}, headers=OP
     ).json()
-    assert atencion["id"] not in [a.id for a in atenciones.resolver_llegadas()]  # aún en camino
+    assert atencion["id"] not in [r.atencion.id for r in atenciones.resolver_llegadas()]  # aún en camino
 
     futuro = ahora_utc() + timedelta(minutes=5)
     monkeypatch.setattr(atenciones, "ahora_utc", lambda: futuro)
     resueltas = atenciones.resolver_llegadas()
-    assert atencion["id"] in [a.id for a in resueltas]
+    assert atencion["id"] in [r.atencion.id for r in resueltas]
 
     guardada = client.get(f"{API}/atenciones/{atencion['id']}", headers=OP).json()
     assert guardada["estado"] == "resuelto" and guardada["llegada_en"] is not None
+    # El evento también queda cerrado en la base (columna resuelto_en).
+    assert client.get(f"{API}/eventos/{evento['id']}", headers=OP).json()["resuelto_en"] is not None
     acciones = [i["accion"] for i in client.get(f"{API}/auditoria", params={"limit": 6}, headers=OP).json()["items"]]
     assert "atencion.resuelta" in acciones and "atencion.unidad_despachada" in acciones
     assert client.get(f"{API}/auditoria/verificar", headers=OP).json()["integra"] is True
@@ -99,20 +103,28 @@ def test_websocket_avisa_la_atencion(client: Any, sensor: dict[str, str]) -> Non
 
 
 class _ProcesoFalso:
+    """Simula el sensor: sigue vivo hasta que lo detienen (como un proceso real)."""
+
     pid = 999_999
 
     def __init__(self, comando: list[str], **kwargs: Any) -> None:
         self.comando = comando
         self.kwargs = kwargs
         self.stdout = iter(["Modelos listos\n"])
-        self._vivo = True
+        self.returncode: int | None = None
+        self._termino = threading.Event()
 
     def poll(self) -> int | None:
-        return None if self._vivo else 0
+        return self.returncode
+
+    def terminar(self) -> None:
+        self.returncode = -15
+        self._termino.set()
 
     def wait(self, timeout: float | None = None) -> int:
-        self._vivo = False
-        return 0
+        if not self._termino.wait(timeout):
+            raise subprocess.TimeoutExpired("sentinelops", timeout or 0)
+        return self.returncode or 0
 
 
 @pytest.fixture
@@ -126,7 +138,14 @@ def lanzados(monkeypatch: pytest.MonkeyPatch) -> list[_ProcesoFalso]:
         return procesos[-1]
 
     monkeypatch.setattr(vinculacion.subprocess, "Popen", _popen)
-    monkeypatch.setattr(vinculacion.os, "killpg", lambda pid, sig: procesos[-1].wait())
+
+    from PROYECTO_HACKATEC_REGIONAL.BACKEND.services import fuente_video
+
+    async def _responde(url: str) -> str:
+        return url
+
+    monkeypatch.setattr(fuente_video, "resolver", _responde)
+    monkeypatch.setattr(vinculacion.os, "killpg", lambda pid, sig: procesos[-1].terminar())
     yield procesos
     vinculacion.SUPERVISOR._actual = None
 

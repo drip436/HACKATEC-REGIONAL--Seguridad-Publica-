@@ -1,0 +1,6 @@
+/* Tipografía del panel: Radix Themes define su fuente con esta variable. */
+.radix-themes {
+  --default-font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --code-font-family: "JetBrains Mono", ui-monospace, "SFMono-Regular", monospace;
+}
+body { background: #0f0f11; }

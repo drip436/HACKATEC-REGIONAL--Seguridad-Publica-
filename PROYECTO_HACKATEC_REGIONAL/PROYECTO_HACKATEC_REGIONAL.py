@@ -8,7 +8,14 @@ from .pages.auditoria import auditoria
 from .pages.operacion import operacion
 from .state import State
 
-app = rx.App(api_transformer=crear_api())
+app = rx.App(
+    api_transformer=crear_api(),
+    stylesheets=[
+        "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap",
+        "/sentinel.css",
+    ],
+    style={"font_family": "Inter, system-ui, sans-serif", "background": "#0f0f11"},
+)
 app.register_lifespan_task(inicializar_bd)
 app.register_lifespan_task(ciclo_operativo)
 app.add_page(operacion, route="/", title="SentinelOps · Operación", on_load=State.iniciar)

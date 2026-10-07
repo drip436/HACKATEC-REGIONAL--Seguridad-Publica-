@@ -31,14 +31,9 @@ def auditoria() -> rx.Component:
                         spacing="2",
                     ),
                 ),
-                rx.text(
-                    "Trazabilidad de cada evento: qué sensor lo detectó, qué operador lo validó y a qué dependencia "
-                    "se despachó. Los registros están encadenados por hash; el sello es el inicio de ese hash.",
-                    size="2",
-                    color=TEXTO_3,
-                ),
+                rx.text("Cada acción queda registrada y encadenada; no se puede editar ni borrar.", size="2", color=TEXTO_3),
                 rx.cond(State.integridad != "", rx.text(State.integridad, size="2", color=TEXTO_2, font_weight="600")),
-                rx.text(State.bitacora.length(), " registros mostrados (los más recientes primero)", size="1", color=TEXTO_3),
+                rx.text(State.bitacora.length(), " registros, los más recientes primero", size="1", color=TEXTO_3),
                 rx.box(
                     rx.table.root(
                         rx.table.header(rx.table.row(*[rx.table.column_header_cell(c) for c in _COLUMNAS])),

@@ -2,9 +2,12 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Path, Query, status
+import logging
+
+from fastapi import APIRouter, BackgroundTasks, Path, Query, status
 from starlette.concurrency import run_in_threadpool
 
+from ..errores import SentinelError
 from ..realtime import get_manager
 from ..schemas import RESPUESTAS_ERROR, DespachoIn, DespachoOut, ErrorRespuesta, ReintentoDespachoIn
 from ..services import despachos
@@ -18,13 +21,31 @@ router = APIRouter(
 )
 
 
-@router.post("", response_model=DespachoOut, status_code=status.HTTP_201_CREATED)
-async def crear_despacho(datos: DespachoIn, ip: IpCliente) -> DespachoOut:
-    """Emite la orden de despacho de un evento **validado** hacia una dependencia,
-    la federa vía el nodo X-Road simulado y la confirma con acuse firmado."""
-    despacho = await run_in_threadpool(despachos.crear_despacho, datos, ip_origen=ip)
+LOGGER = logging.getLogger("sentinelops.despachos")
+
+
+@router.post("", response_model=DespachoOut, status_code=status.HTTP_202_ACCEPTED)
+async def crear_despacho(datos: DespachoIn, ip: IpCliente, tareas: BackgroundTasks) -> DespachoOut:
+    """Emite la orden de despacho de un evento **validado** y responde al instante con
+    estado `enviado`. La federación X-Road y el acuse firmado se completan después de
+    responder; el resultado llega por `/ws/alertas` (`despacho.actualizado`)."""
+    despacho, federacion = await run_in_threadpool(despachos.emitir_despacho, datos, ip_origen=ip)
     await get_manager().broadcast("despacho.actualizado", despacho)
+    tareas.add_task(_completar_federacion, federacion)
     return despacho
+
+
+async def _completar_federacion(federacion: despachos.Federacion) -> None:
+    try:
+        despacho = await run_in_threadpool(despachos.completar_despacho, federacion)
+    except SentinelError as error:
+        # Queda `enviado`: el operador puede reintentar desde el panel.
+        LOGGER.warning("Federación del despacho %d falló: %s", federacion.despacho_id, error)
+        despacho = await run_in_threadpool(despachos.obtener_despacho, federacion.despacho_id)
+    except Exception:  # noqa: BLE001 - una tarea de fondo nunca debe tumbar el servidor
+        LOGGER.exception("Error inesperado al completar el despacho %d", federacion.despacho_id)
+        return
+    await get_manager().broadcast("despacho.actualizado", despacho)
 
 
 @router.post("/{despacho_id}/reintentar", response_model=DespachoOut)

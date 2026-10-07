@@ -19,8 +19,9 @@ from sqlmodel import col, select
 
 from ..errores import ConflictoEstado, RecursoNoEncontrado
 from ..models import AccionAuditoria, AtencionCampo, EstadoAtencion, EstadoValidacion
-from ..schemas import AtencionIn, AtencionOut, EventoOut
+from ..schemas import AtencionIn, AtencionOut, EventoOut, UnidadOut
 from ..utils.tiempo import ahora_utc
+from . import flota
 from .auditoria import registrar
 from .db import lectura, transaccion
 from .eventos import cargar_evento_con_sensor
@@ -29,13 +30,13 @@ from .mapeo import atencion_a_dto, evento_a_dto
 LOGGER = logging.getLogger("sentinelops.atenciones")
 
 _OSRM_URL = os.getenv("SENTINEL_OSRM_URL", "https://router.project-osrm.org").rstrip("/")
-# Distancia (m) desde la que sale la unidad; la ruta real por calles suele ser mayor.
-_DISTANCIA_SALIDA_M = 1600.0
 # Velocidad de la simulación (m/s, ~6x una patrulla urbana) y sus límites de duración.
 _VELOCIDAD_DEMO = float(os.getenv("SENTINEL_VELOCIDAD_DEMO_MPS", "60"))
 _DURACION_MIN_S, _DURACION_MAX_S = 20.0, 75.0
 _MAX_PUNTOS_RUTA = 300
-_RADIO_TIERRA_M = 6_371_000.0
+_TIMEOUT_OSRM_S = 2.5
+_MAX_CACHE_RUTAS = 64
+
 
 
 @dataclass(frozen=True, slots=True)
@@ -43,6 +44,9 @@ class Ruta:
     puntos: list[list[float]]  # [[lat, lng], ...]
     distancia_m: float
     por_calles: bool
+
+
+_CACHE_RUTAS: dict[tuple[float, float, float, float], Ruta] = {}
 
 
 @dataclass(frozen=True, slots=True)
@@ -57,15 +61,19 @@ def crear_atencion(datos: AtencionIn, *, ip_origen: str) -> ResultadoAtencion:
         evento, _ = cargar_evento_con_sensor(session, datos.evento_id)
         destino = (evento.latitud, evento.longitud)
         _verificar_atendible(session, evento)
+        unidad = flota.mas_cercana(destino, flota.asignaciones(session))
+    if unidad is None:
+        raise ConflictoEstado("No hay unidades libres: todas están atendiendo otros casos.")
 
     # La ruta se pide fuera de la transacción: es una llamada de red.
-    origen = _punto_de_salida(destino, semilla=datos.evento_id)
-    ruta = calcular_ruta(origen, destino)
+    ruta = calcular_ruta((unidad.lat, unidad.lng), destino)
     duracion = min(max(ruta.distancia_m / _VELOCIDAD_DEMO, _DURACION_MIN_S), _DURACION_MAX_S)
 
     with transaccion() as session:
         evento, sensor = cargar_evento_con_sensor(session, datos.evento_id)
         _verificar_atendible(session, evento)
+        if unidad.id in flota.asignaciones(session):
+            raise ConflictoEstado(f"{unidad.id} acaba de ser asignada a otro caso; intenta de nuevo.")
         ahora = ahora_utc()
         if evento.estado_validacion == EstadoValidacion.PENDIENTE.value:
             evento.estado_validacion = EstadoValidacion.VALIDADO.value
@@ -86,7 +94,7 @@ def crear_atencion(datos: AtencionIn, *, ip_origen: str) -> ResultadoAtencion:
 
         atencion = AtencionCampo(
             evento_id=datos.evento_id,
-            unidad=f"PATRULLA-{datos.evento_id % 20 + 1:02d}",
+            unidad=unidad.id,
             solicitado_por=datos.operador_id,
             origen_lat=ruta.puntos[0][0],
             origen_lng=ruta.puntos[0][1],
@@ -111,6 +119,7 @@ def crear_atencion(datos: AtencionIn, *, ip_origen: str) -> ResultadoAtencion:
             detalle={
                 "evento_id": datos.evento_id,
                 "unidad": atencion.unidad,
+                "base": unidad.base,
                 "distancia_m": atencion.distancia_m,
                 "ruta_por_calles": ruta.por_calles,
                 "duracion_simulada_s": atencion.duracion_s,
@@ -119,20 +128,28 @@ def crear_atencion(datos: AtencionIn, *, ip_origen: str) -> ResultadoAtencion:
         return ResultadoAtencion(atencion=atencion_a_dto(atencion), evento=evento_a_dto(evento, sensor.codigo))
 
 
-def resolver_llegadas() -> list[AtencionOut]:
-    """Marca como resueltas las unidades cuya hora de llegada ya pasó."""
+def resolver_llegadas() -> list[ResultadoAtencion]:
+    """Marca como resueltas las unidades cuya hora de llegada ya pasó y cierra su evento
+    (`resuelto_en`). Sin llegadas pendientes no abre ninguna transacción de escritura."""
     ahora = ahora_utc()
+    pendientes = (
+        select(AtencionCampo)
+        .where(col(AtencionCampo.estado) == EstadoAtencion.EN_CAMINO.value)
+        .where(col(AtencionCampo.llegada_estimada) <= ahora)
+    )
+    with lectura() as session:
+        if session.exec(pendientes.limit(1)).first() is None:
+            return []
+
     with transaccion() as session:
-        llegadas = session.exec(
-            select(AtencionCampo)
-            .where(col(AtencionCampo.estado) == EstadoAtencion.EN_CAMINO.value)
-            .where(col(AtencionCampo.llegada_estimada) <= ahora)
-        ).all()
         resueltas = []
-        for atencion in llegadas:
+        for atencion in session.exec(pendientes).all():
             atencion.estado = EstadoAtencion.RESUELTO.value
             atencion.llegada_en = ahora
             session.add(atencion)
+            evento, sensor = cargar_evento_con_sensor(session, atencion.evento_id)
+            evento.resuelto_en = ahora
+            session.add(evento)
             session.flush()
             registrar(
                 session,
@@ -143,8 +160,13 @@ def resolver_llegadas() -> list[AtencionOut]:
                 entidad_id=atencion.id,
                 detalle={"evento_id": atencion.evento_id, "unidad": atencion.unidad, "resultado": "caso atendido en sitio"},
             )
-            resueltas.append(atencion_a_dto(atencion))
+            resueltas.append(ResultadoAtencion(atencion=atencion_a_dto(atencion), evento=evento_a_dto(evento, sensor.codigo)))
         return resueltas
+
+
+def listar_unidades() -> list[UnidadOut]:
+    with lectura() as session:
+        return flota.listar(session)
 
 
 def listar_atenciones(*, limit: int) -> list[AtencionOut]:
@@ -167,10 +189,23 @@ def obtener_atencion(atencion_id: int) -> AtencionOut:
 
 
 def calcular_ruta(origen: tuple[float, float], destino: tuple[float, float]) -> Ruta:
-    """Ruta en coche por calles (OSRM); línea recta si el servicio no responde."""
+    """Ruta en coche por calles (OSRM); línea recta si el servicio no responde.
+    Las rutas por calles se guardan en caché: de una base a una cámara casi siempre es la misma."""
+    clave = (round(origen[0], 5), round(origen[1], 5), round(destino[0], 5), round(destino[1], 5))
+    if clave in _CACHE_RUTAS:
+        return _CACHE_RUTAS[clave]
+    ruta = _ruta_osrm(origen, destino)
+    if ruta.por_calles:
+        if len(_CACHE_RUTAS) >= _MAX_CACHE_RUTAS:
+            _CACHE_RUTAS.pop(next(iter(_CACHE_RUTAS)))
+        _CACHE_RUTAS[clave] = ruta
+    return ruta
+
+
+def _ruta_osrm(origen: tuple[float, float], destino: tuple[float, float]) -> Ruta:
     url = f"{_OSRM_URL}/route/v1/driving/{origen[1]:.6f},{origen[0]:.6f};{destino[1]:.6f},{destino[0]:.6f}"
     try:
-        respuesta = httpx.get(url, params={"overview": "full", "geometries": "geojson"}, timeout=6.0)
+        respuesta = httpx.get(url, params={"overview": "full", "geometries": "geojson"}, timeout=_TIMEOUT_OSRM_S)
         respuesta.raise_for_status()
         datos = respuesta.json()
         mejor = datos["routes"][0]
@@ -186,22 +221,7 @@ def calcular_ruta(origen: tuple[float, float], destino: tuple[float, float]) -> 
         [round(origen[0] + (destino[0] - origen[0]) * i / pasos, 6), round(origen[1] + (destino[1] - origen[1]) * i / pasos, 6)]
         for i in range(pasos + 1)
     ]
-    return Ruta(puntos=puntos, distancia_m=_distancia_m(origen, destino), por_calles=False)
-
-
-def _punto_de_salida(destino: tuple[float, float], *, semilla: int) -> tuple[float, float]:
-    """Punto a `_DISTANCIA_SALIDA_M` del evento, en una dirección que varía por evento."""
-    rumbo = math.radians((semilla * 137.508) % 360)  # ángulo áureo: direcciones repartidas
-    dlat = _DISTANCIA_SALIDA_M * math.cos(rumbo) / _RADIO_TIERRA_M
-    dlng = _DISTANCIA_SALIDA_M * math.sin(rumbo) / (_RADIO_TIERRA_M * math.cos(math.radians(destino[0])))
-    return (destino[0] + math.degrees(dlat), destino[1] + math.degrees(dlng))
-
-
-def _distancia_m(a: tuple[float, float], b: tuple[float, float]) -> float:
-    lat1, lat2 = math.radians(a[0]), math.radians(b[0])
-    dlat, dlng = lat2 - lat1, math.radians(b[1] - a[1])
-    h = math.sin(dlat / 2) ** 2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlng / 2) ** 2
-    return 2 * _RADIO_TIERRA_M * math.asin(math.sqrt(h))
+    return Ruta(puntos=puntos, distancia_m=flota.distancia_m(origen, destino), por_calles=False)
 
 
 def _reducir(puntos: list[list[float]]) -> list[list[float]]:
