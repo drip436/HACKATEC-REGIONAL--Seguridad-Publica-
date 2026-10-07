@@ -7,9 +7,9 @@ import { useEffect, useRef, useState } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
-const ROJO = "#ef4444";
-const AZUL = "#3b82f6";
-const VERDE = "#22c55e";
+const ROJO = "#dc2626";
+const AZUL = "#2563eb";
+const VERDE = "#16a34a";
 // La patrulla que llegó se queda unos segundos en el lugar y luego vuelve a su base.
 const PATRULLA_VISIBLE_TRAS_LLEGAR_MS = 10 * 1000;
 // Zoom al encuadrar incidentes: nunca más cerca que una vista de colonia.
@@ -19,31 +19,26 @@ const ZOOM_MAX_ENCUADRE = 15;
 const ZOOM_MIN_MARCAR = 15;
 
 const CSS = `
-.so-mapa { width: 100%; border-radius: 8px; background: #061f20; z-index: 0; border: 1px solid #1f5f60; }
-/* Mapa base oscuro y apagado: los colores quedan para incidentes, patrullas y zonas. */
-.so-mapa .leaflet-tile-pane { filter: brightness(1.25) contrast(0.95); }
-.so-mapa .leaflet-tooltip { background: #07292a; color: #f1f5f2; border: 1px solid #1f5f60; border-radius: 6px;
-  box-shadow: 0 2px 8px rgba(0,0,0,.4); font: 12px/1.4 Inter, system-ui, sans-serif; padding: 4px 8px; }
+.so-mapa { width: 100%; border-radius: 8px; background: #eef2ee; z-index: 0; border: 1px solid #d5ddd8; }
+/* Mapa base apagado: los colores quedan para incidentes, patrullas y zonas. */
+.so-mapa .leaflet-tile-pane { filter: grayscale(0.85) brightness(1.04) contrast(0.92); }
+.so-mapa .leaflet-tooltip { background: #0c3536; color: #f9fafb; border: 0; border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0,0,0,.15); font: 12px/1.4 Inter, system-ui, sans-serif; padding: 4px 8px; }
 .so-mapa .leaflet-tooltip::before { display: none; }
-.so-mapa .leaflet-control-attribution { font-size: 10px; background: rgba(7,41,42,.8); color: #8fb0ab; }
-.so-mapa .leaflet-control-attribution a { color: #c9d8d4; }
-.so-mapa .leaflet-bar { border: 1px solid #1f5f60; }
-.so-mapa .leaflet-bar a { background: #0d3b3c; color: #f1f5f2; border-bottom-color: #1f5f60; }
-.so-mapa .leaflet-bar a:hover { background: #124a4b; color: #fff; }
-.so-mapa .leaflet-bar a.leaflet-disabled { background: #0a3132; color: #5f807b; }
+.so-mapa .leaflet-control-attribution { font-size: 10px; background: rgba(255,255,255,.8); }
 .so-alerta { display: block; width: 12px; height: 12px; border-radius: 50%; background: ${ROJO};
   border: 2px solid #fff; box-shadow: 0 0 0 1px rgba(17,24,39,.25); cursor: pointer; }
 .so-alerta.so-resuelto { background: ${VERDE}; }
-.so-alerta.so-sel { box-shadow: 0 0 0 1px rgba(17,24,39,.25), 0 0 0 5px rgba(239,68,68,.35); }
-.so-alerta.so-resuelto.so-sel { box-shadow: 0 0 0 1px rgba(17,24,39,.25), 0 0 0 5px rgba(34,197,94,.35); }
-.so-camara { display: block; width: 9px; height: 9px; border-radius: 2px; background: #c9d8d4; border: 1.5px solid #07292a; }
-.so-camara.so-inactiva { background: #5f807b; }
+.so-alerta.so-sel { box-shadow: 0 0 0 1px rgba(17,24,39,.25), 0 0 0 5px rgba(220,38,38,.25); }
+.so-alerta.so-resuelto.so-sel { box-shadow: 0 0 0 1px rgba(17,24,39,.25), 0 0 0 5px rgba(22,163,74,.25); }
+.so-camara { display: block; width: 9px; height: 9px; border-radius: 2px; background: #374151; border: 1.5px solid #fff; }
+.so-camara.so-inactiva { background: #9ca3af; }
 .so-unidad { display: block; width: 10px; height: 10px; border-radius: 50%; background: ${AZUL};
   border: 2px solid #fff; box-shadow: 0 0 0 1px rgba(17,24,39,.25); }
 .so-patrulla { display: block; width: 14px; height: 14px; border-radius: 50%; background: ${AZUL};
-  border: 2px solid #fff; box-shadow: 0 0 0 4px rgba(59,130,246,.3); }
-.so-patrulla.so-llego { box-shadow: 0 0 0 4px rgba(34,197,94,.35); }
-.so-rondin { display: block; width: 12px; height: 12px; border-radius: 50%; border: 2.5px solid #c8b88e; background: #07292a; }
+  border: 2px solid #fff; box-shadow: 0 0 0 4px rgba(37,99,235,.22); }
+.so-patrulla.so-llego { box-shadow: 0 0 0 4px rgba(22,163,74,.3); }
+.so-rondin { display: block; width: 12px; height: 12px; border-radius: 50%; border: 2.5px solid #0f5152; background: #fff; }
 `;
 
 // Distancia aproximada en metros entre [lat, lng]: suficiente para repartir el avance.
@@ -98,12 +93,10 @@ export function MapaLeaflet({
 
   useEffect(() => {
     const m = L.map(nodo.current, { center: centro, zoom, attributionControl: true, zoomControl: true });
-    L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
       maxZoom: 20,
       maxNativeZoom: 19,
-      subdomains: "abcd",
-      attribution:
-        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
     }).addTo(m);
     capas.current = {
       zonas: L.layerGroup().addTo(m),
@@ -317,7 +310,7 @@ export function MapaLeaflet({
         blur: 15,
         minOpacity: 0.3,
         max: Math.max(4, calor.length / 40),
-        gradient: { 0.3: "#7f1d1d", 0.6: "#dc2626", 0.85: "#f97316", 1: "#fde047" },
+        gradient: { 0.3: "#fecaca", 0.6: "#f87171", 0.85: "#dc2626", 1: "#7f1d1d" },
       }).addTo(capa);
     });
     return () => {
@@ -432,7 +425,6 @@ function MapaGoogleInterno({
           center: { lat: centro[0], lng: centro[1] },
           zoom,
           mapId: "DEMO_MAP_ID",
-          colorScheme: "DARK",
           mapTypeControl: false,
           streetViewControl: false,
           clickableIcons: false,
@@ -680,7 +672,7 @@ function MapaGoogleInterno({
           center: { lat: c.lat / c.n, lng: c.lng / c.n },
           radius: 350 + 650 * t,
           strokeWeight: 0,
-          fillColor: t > 0.66 ? "#fde047" : t > 0.33 ? "#f97316" : "#dc2626",
+          fillColor: t > 0.66 ? "#7f1d1d" : t > 0.33 ? "#dc2626" : "#f87171",
           fillOpacity: 0.2 + 0.45 * t,
           clickable: false,
         }),

@@ -3,7 +3,7 @@
 import reflex as rx
 
 from ...estado_ui import EstadoUI
-from ...estilos import ACENTO, LINEA, ROJO, TEXTO, TEXTO_3, VERDE, VELO, VIDEO, tarjeta, titulo
+from ...estilos import ACENTO, LINEA, ROJO, SOBRE_VIDEO, SOBRE_VIDEO_2, TEXTO_3, VELO, VIDEO, tarjeta, titulo
 from ...state import State
 
 
@@ -39,10 +39,10 @@ def _celda(tile) -> rx.Component:
                 height="6px",
                 border_radius="50%",
                 flex_shrink="0",
-                background=rx.cond(tile["en_alerta"], ROJO, rx.cond(tile["activa"], VERDE, TEXTO_3)),
+                background=rx.cond(tile["en_alerta"], ROJO, rx.cond(tile["activa"], "#4ade80", SOBRE_VIDEO_2)),
             ),
-            rx.text(tile["etiqueta"], font_size="10px", font_weight="600", color=TEXTO, white_space="nowrap"),
-            rx.text(tile["nombre"], font_size="10px", color=TEXTO_3, trim="both", style={"overflow": "hidden", "textOverflow": "ellipsis", "whiteSpace": "nowrap"}),
+            rx.text(tile["etiqueta"], font_size="10px", font_weight="600", color=SOBRE_VIDEO, white_space="nowrap"),
+            rx.text(tile["nombre"], font_size="10px", color=SOBRE_VIDEO_2, trim="both", style={"overflow": "hidden", "textOverflow": "ellipsis", "whiteSpace": "nowrap"}),
             spacing="1",
             align="center",
             position="absolute",

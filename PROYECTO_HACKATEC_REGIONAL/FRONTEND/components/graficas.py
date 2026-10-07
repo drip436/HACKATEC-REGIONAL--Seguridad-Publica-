@@ -49,7 +49,7 @@ def eventos_por_hora() -> rx.Component:
                 rx.recharts.x_axis(data_key="hora", stroke=TEXTO_3, tick_line=False, axis_line=False),
                 rx.recharts.y_axis(stroke=TEXTO_3, tick_line=False, axis_line=False, allow_decimals=False, width=32),
                 rx.recharts.graphing_tooltip(
-                    cursor={"fill": "rgba(255, 255, 255, 0.05)"},
+                    cursor={"fill": "rgba(12, 53, 54, 0.05)"},
                     content_style={"background": SUPERFICIE, "border": BORDE, "borderRadius": "8px"},
                     label_style={"color": TEXTO},
                     item_style={"color": TEXTO_2},

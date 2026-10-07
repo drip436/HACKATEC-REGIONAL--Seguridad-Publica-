@@ -86,7 +86,7 @@ def _leyenda_item(marca: rx.Component, texto: str) -> rx.Component:
 
 def _zona() -> rx.Component:
     return rx.box(
-        width="14px", height="14px", border_radius="50%", background="rgba(239,68,68,.3)", border="1px solid rgba(239,68,68,.55)"
+        width="14px", height="14px", border_radius="50%", background="rgba(220,38,38,.3)", border="1px solid rgba(220,38,38,.5)"
     )
 
 
@@ -94,7 +94,7 @@ def _leyenda(calor: bool = False) -> rx.Component:
     if calor:
         items = [
             _leyenda_item(
-                rx.box(width="24px", height="8px", border_radius="4px", background="linear-gradient(90deg, #7f1d1d, #dc2626, #f97316, #fde047)"),
+                rx.box(width="24px", height="8px", border_radius="4px", background="linear-gradient(90deg, #fecaca, #dc2626, #7f1d1d)"),
                 "Concentración de eventos",
             ),
             _leyenda_item(_punto(FONDO, borde=f"2.5px solid {ACENTO}"), "Rondín sugerido"),
@@ -168,7 +168,7 @@ def mapa_de_calor() -> rx.Component:
             _mapa(calor=State.puntos_calor, rondines=State.puntos_rondin, altura="420px"),
             _leyenda(calor=True),
             rx.text(
-                "Más claro = más eventos. Solo se usan ubicación, tipo y hora del evento.",
+                "Más oscuro = más eventos. Solo se usan ubicación, tipo y hora del evento.",
                 size="1",
                 color=TEXTO_3,
             ),

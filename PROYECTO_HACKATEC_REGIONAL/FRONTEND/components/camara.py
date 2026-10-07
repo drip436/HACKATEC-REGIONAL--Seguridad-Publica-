@@ -4,7 +4,7 @@ detección en vivo, o la última captura de la cámara elegida en el mosaico."""
 import reflex as rx
 
 from ...estado_ui import EstadoUI
-from ...estilos import AMBAR, BORDE, ROJO, TEXTO, TEXTO_2, TEXTO_3, VELO, VIDEO, tarjeta, titulo
+from ...estilos import AMBAR, BORDE, ROJO, SOBRE_VIDEO, TEXTO, TEXTO_2, TEXTO_3, VELO, VIDEO, tarjeta, titulo
 from ...state import State
 
 _NIVEL = {
@@ -35,7 +35,7 @@ def _rotulo(*hijos, **props) -> rx.Component:
         font_size="11px",
         font_weight="600",
         letter_spacing="0.05em",
-        color=TEXTO,
+        color=SOBRE_VIDEO,
         **props,
     )
 

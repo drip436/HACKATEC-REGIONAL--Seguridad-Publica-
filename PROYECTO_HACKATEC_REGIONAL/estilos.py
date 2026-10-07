@@ -1,42 +1,45 @@
-"""Paleta y estilos compartidos del panel (tema oscuro con los colores del logo).
+"""Paleta y estilos compartidos del panel (tema claro con los colores del logo).
 
-Fondos en el verde azulado del logo y un solo color de acento (su dorado) para
-lo interactivo y la telemetría. Los demás colores
-tienen un significado fijo y no se usan para decorar: rojo = incidente,
-azul = patrulla, verde = caso resuelto, ámbar = advertencia.
+Fondo casi blanco, el verde azulado del logo como único color de acento y su
+dorado solo para detalles de marca. Los demás colores tienen un significado
+fijo y no se usan para decorar: rojo = incidente, azul = patrulla,
+verde = caso resuelto, ámbar = advertencia.
 """
 
 import reflex as rx
 
 # Verde azulado y dorado tomados del logo de SentinelOps.
 MARCA = "#0f5152"
-FONDO = "#07292a"
-SUPERFICIE = "#0d3b3c"
-SUPERFICIE_2 = "#124a4b"
-LINEA = "#1f5f60"
+ORO = "#b0975a"
+FONDO = "#f4f6f2"
+SUPERFICIE = "#ffffff"
+SUPERFICIE_2 = "#eef2ee"
+LINEA = "#d5ddd8"
 BORDE = f"1px solid {LINEA}"
-TEXTO = "#f1f5f2"
-TEXTO_2 = "#c9d8d4"
-TEXTO_3 = "#8fb0ab"
-ACENTO = "#c8b88e"
-ACENTO_SUAVE = "rgba(200, 184, 142, 0.14)"
+TEXTO = "#0c3536"
+TEXTO_2 = "#3d5c5b"
+TEXTO_3 = "#64807d"
+ACENTO = MARCA
+ACENTO_SUAVE = "rgba(15, 81, 82, 0.1)"
 
-ROJO = "#ef4444"
-AZUL = "#3b82f6"
-VERDE = "#22c55e"
-AMBAR = "#f59e0b"
-# Fondo de video y capturas: casi negro, para que el encuadre no compita con la imagen.
+ROJO = "#dc2626"
+AZUL = "#2563eb"
+VERDE = "#16a34a"
+AMBAR = "#b45309"
+# El video y las capturas conservan fondo oscuro: el encuadre no compite con la imagen.
 VIDEO = "#031516"
-# Velo de los rótulos superpuestos al video.
+# Velo y texto de los rótulos superpuestos al video.
 VELO = "rgba(3, 21, 22, 0.75)"
+SOBRE_VIDEO = "#f1f5f2"
+SOBRE_VIDEO_2 = "#a9c2bd"
 
 # Colores de estado: reservados para severidad y estado, nunca para series.
-COLOR_SEVERIDAD = {"critica": "#f87171", "alta": "#fb923c", "media": "#fbbf24", "baja": "#8fb0ab"}
+COLOR_SEVERIDAD = {"critica": "#b91c1c", "alta": "#c2410c", "media": "#a16207", "baja": "#64807d"}
 COLOR_ESTADO = {
-    "pendiente": "#fbbf24",
-    "validado": "#5eead4",
-    "confirmado": "#4ade80",
-    "descartado": "#8fb0ab",
+    "pendiente": "#a16207",
+    "validado": "#0f766e",
+    "confirmado": "#15803d",
+    "descartado": "#64807d",
 }
 
 # Alto del encabezado fijo: el riel y el panel lateral empiezan debajo.
@@ -49,7 +52,7 @@ TARJETA = {
     "border_radius": "10px",
     "background": SUPERFICIE,
     "position": "relative",
-    # Esquinas blancas tipo visor (assets/sentinel.css).
+    # Esquinas doradas tipo visor (assets/sentinel.css).
     "class_name": "so-tarjeta",
 }
 
