@@ -11,10 +11,12 @@ Cinco reglas se evalúan por frame sobre el polígono calibrado:
 
 from __future__ import annotations
 
+from collections import deque
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
+from statistics import median
 from enum import Enum, IntEnum
-from itertools import chain, combinations
+from itertools import combinations
 
 import cv2
 import numpy as np
@@ -22,9 +24,15 @@ import numpy as np
 from .detector import Detection
 
 # --- Umbrales temporales de las reglas -------------------------------------
-PERSON_LOITER_SECONDS: float = 4.0
-VEHICLE_LOITER_SECONDS: float = 10.0
-PROXIMITY_SECONDS: float = 4.0
+PERSON_LOITER_SECONDS: float = 20.0
+VEHICLE_LOITER_SECONDS: float = 30.0
+PROXIMITY_SECONDS: float = 6.0
+# Un gesto cuenta solo si la misma persona lo sostiene este tiempo. Manos
+# arriba: solo antiparpadeo (en el video de demo el gesto dura ~1 s, y con
+# inferencia 1 de cada 3 frames se ve ~0.7 s). Agacharse: un recogido de
+# suelo dura menos de 2 s; un ocultamiento, más.
+HANDS_UP_HOLD_SECONDS: float = 0.5
+CROUCH_HOLD_SECONDS: float = 2.0
 # El arma (y la postura) aparecen y desaparecen entre frames; sostener el
 # ROJO unos segundos evita el parpadeo del semáforo.
 DANGER_HOLD_SECONDS: float = 2.0
@@ -35,7 +43,7 @@ TRACK_GRACE_SECONDS: float = 1.0
 # --- Umbrales de la heurística de proximidad -------------------------------
 # Superposición mínima (intersección sobre la caja menor) para considerar
 # invasión del espacio personal.
-PROXIMITY_OVERLAP_RATIO: float = 0.40
+PROXIMITY_OVERLAP_RATIO: float = 0.50
 # O bien centroides a menos de esta fracción del ancho medio de los bboxes:
 # escala con la distancia a la cámara, al contrario que un umbral en píxeles.
 PROXIMITY_DISTANCE_FACTOR: float = 0.60
@@ -43,6 +51,24 @@ PROXIMITY_DISTANCE_FACTOR: float = 0.60
 # IoU mínimo para reasignar la identidad de un frame al siguiente cuando el
 # tracker de Ultralytics no entrega `track_id`.
 IDENTITY_MIN_IOU: float = 0.25
+
+# --- Historial por identidad (quietud, caída de altura, acercamiento) --------
+HISTORY_SECONDS: float = 10.0
+# Merodear es quedarse: en los últimos N segundos los pies no se movieron más
+# de esta fracción del ancho de la propia caja. Caminar despacio no cuenta.
+LOITER_STILLNESS_SECONDS: float = 5.0
+LOITER_STILLNESS_FACTOR: float = 1.5
+# Agacharse es una caída: la caja baja a esta fracción de su altura habitual.
+# Alguien sentado desde que apareció nunca "se agacha".
+CROUCH_HEIGHT_DROP_RATIO: float = 0.65
+CROUCH_HEIGHT_MIN_HISTORY_SECONDS: float = 1.0
+# Un altercado empieza con un acercamiento brusco: la distancia entre los dos
+# cayó a la mitad en los últimos segundos. Dos personas que ya estaban juntas
+# (conversación, fila) no cuentan.
+CONVERGE_SECONDS: float = 3.0
+CONVERGE_RATIO: float = 0.5
+# Tres o más personas pegadas son un grupo o una fila, no una agresión.
+GROUP_SUPPRESS_SIZE: int = 3
 
 # Compatibilidad con la CLI previa, que hablaba de un único "merodeo".
 LOITERING_SECONDS: float = PERSON_LOITER_SECONDS
@@ -338,6 +364,75 @@ class _DwellRegistry:
         self._clocks.clear()
 
 
+@dataclass(frozen=True, slots=True)
+class _Sample:
+    at: float
+    x: float
+    y: float
+    height: float
+    width: float
+
+
+class _TrackHistory:
+    """Últimos segundos de posición y tamaño de cada identidad.
+
+    Alimenta las heurísticas que necesitan pasado: quietud (merodeo), caída de
+    altura (agacharse) y acercamiento (altercado).
+    """
+
+    def __init__(self, seconds: float) -> None:
+        self._seconds = seconds
+        self._samples: dict[str, deque[_Sample]] = {}
+
+    def push(self, key: str, detection: Detection, now: float) -> None:
+        x, y = detection.foot_point
+        samples = self._samples.setdefault(key, deque())
+        samples.append(_Sample(now, float(x), float(y), float(detection.height), float(detection.width)))
+        while samples and now - samples[0].at > self._seconds:
+            samples.popleft()
+
+    def _recent(self, key: str, window: float, now: float) -> list[_Sample]:
+        return [s for s in self._samples.get(key, ()) if now - s.at <= window]
+
+    def is_still(self, key: str, window: float, factor: float, now: float) -> bool:
+        """True si en `window` segundos los pies no salieron de `factor` anchos de caja."""
+        samples = self._recent(key, window, now)
+        if not samples or now - samples[0].at < 0.8 * window:
+            return False  # historial corto: aún no se puede afirmar quietud
+        last = samples[-1]
+        radius = factor * max(last.width, 1.0)
+        return all(np.hypot(s.x - last.x, s.y - last.y) <= radius for s in samples)
+
+    def dropped_height(self, key: str, ratio: float, min_history: float, now: float) -> bool:
+        """True si la altura actual es <= `ratio` de la mediana previa del track."""
+        samples = self._samples.get(key)
+        if not samples:
+            return False
+        last = samples[-1]
+        previous = [s.height for s in samples if last.at - s.at >= min_history]
+        if not previous:
+            return False
+        return last.height <= ratio * median(previous)
+
+    def distance_ago(self, key_a: str, key_b: str, ago: float, now: float) -> float | None:
+        """Distancia entre dos identidades hace `ago` segundos (None si no hay datos)."""
+        target = now - ago
+        pair = []
+        for key in (key_a, key_b):
+            samples = self._samples.get(key)
+            if not samples or samples[0].at > target + 0.5:
+                return None
+            pair.append(min(samples, key=lambda s: abs(s.at - target)))
+        return float(np.hypot(pair[0].x - pair[1].x, pair[0].y - pair[1].y))
+
+    def sweep(self, now: float) -> None:
+        for key in [k for k, v in self._samples.items() if not v or now - v[-1].at > self._seconds]:
+            del self._samples[key]
+
+    def clear(self) -> None:
+        self._samples.clear()
+
+
 class _Latch:
     """Sostiene una detección instantánea durante `hold_seconds`."""
 
@@ -448,6 +543,8 @@ class ThreatAssessor:
         proximity_distance_factor: float = PROXIMITY_DISTANCE_FACTOR,
         danger_hold_seconds: float = DANGER_HOLD_SECONDS,
         track_grace_seconds: float = TRACK_GRACE_SECONDS,
+        hands_up_hold_seconds: float = HANDS_UP_HOLD_SECONDS,
+        crouch_hold_seconds: float = CROUCH_HOLD_SECONDS,
     ) -> None:
         for name, value in (
             ("person_loiter_seconds", person_loiter_seconds),
@@ -455,6 +552,8 @@ class ThreatAssessor:
             ("proximity_seconds", proximity_seconds),
             ("danger_hold_seconds", danger_hold_seconds),
             ("track_grace_seconds", track_grace_seconds),
+            ("hands_up_hold_seconds", hands_up_hold_seconds),
+            ("crouch_hold_seconds", crouch_hold_seconds),
         ):
             if value < 0:
                 raise ValueError(f"{name} no puede ser negativo")
@@ -465,12 +564,19 @@ class ThreatAssessor:
         self._proximity_seconds = proximity_seconds
         self._proximity_overlap = proximity_overlap_ratio
         self._proximity_distance = proximity_distance_factor
+        self._hands_up_seconds = hands_up_hold_seconds
+        self._crouch_seconds = crouch_hold_seconds
 
         self._person_ids = _IdentityResolver("person", IDENTITY_MIN_IOU, track_grace_seconds)
         self._vehicle_ids = _IdentityResolver("vehicle", IDENTITY_MIN_IOU, track_grace_seconds)
         self._person_dwell = _DwellRegistry(track_grace_seconds)
         self._vehicle_dwell = _DwellRegistry(track_grace_seconds)
         self._pair_dwell = _DwellRegistry(track_grace_seconds)
+        self._hands_up_dwell = _DwellRegistry(track_grace_seconds)
+        self._crouch_dwell = _DwellRegistry(track_grace_seconds)
+        self._history = _TrackHistory(HISTORY_SECONDS)
+        # Pareja -> si su contacto empezó con un acercamiento brusco.
+        self._pair_converged: dict[str, bool] = {}
         self._weapon_latch = _Latch(danger_hold_seconds)
         self._crouch_latch = _Latch(danger_hold_seconds)
         self._hands_up_latch = _Latch(danger_hold_seconds)
@@ -493,10 +599,18 @@ class ThreatAssessor:
 
     def reset(self) -> None:
         """Olvida el histórico (cambio de zona, reconexión de cámara)."""
-        for registry in (self._person_dwell, self._vehicle_dwell, self._pair_dwell):
+        for registry in (
+            self._person_dwell,
+            self._vehicle_dwell,
+            self._pair_dwell,
+            self._hands_up_dwell,
+            self._crouch_dwell,
+        ):
             registry.clear()
         for resolver in (self._person_ids, self._vehicle_ids):
             resolver.clear()
+        self._history.clear()
+        self._pair_converged.clear()
         for latch in (self._weapon_latch, self._crouch_latch, self._hands_up_latch):
             latch.clear()
 
@@ -527,8 +641,14 @@ class ThreatAssessor:
                 target.append(detection)
 
         signals: list[ThreatSignal] = []
-        person_keys = self._person_ids.resolve(people_inside, now)
+        # Identidad para todas las personas: los gestos cuentan también fuera
+        # de la zona, y el historial debe seguir a quien entra y sale.
+        all_person_keys = self._person_ids.resolve([*people_inside, *people_outside], now)
+        inside_ids = {id(person) for person in people_inside}
+        person_keys = {k: p for k, p in all_person_keys.items() if id(p) in inside_ids}
         vehicle_keys = self._vehicle_ids.resolve(vehicles_inside, now)
+        for key, person in all_person_keys.items():
+            self._history.push(key, person, now)
 
         # --- Regla 1: vehículo de espera ---------------------------------
         for key, vehicle in vehicle_keys.items():
@@ -541,17 +661,21 @@ class ThreatAssessor:
         # --- Regla 2: merodeo y reconocimiento ---------------------------
         for key, person in person_keys.items():
             elapsed = self._person_dwell.tick(key, now)
-            if elapsed >= self._person_seconds:
+            if elapsed >= self._person_seconds and self._history.is_still(
+                key, LOITER_STILLNESS_SECONDS, LOITER_STILLNESS_FACTOR, now
+            ):
                 signals.append(
                     ThreatSignal(ThreatRule.LOITERING, person, None, elapsed)
                 )
 
         # --- Regla 3: ocultamiento / intrusión táctica -------------------
-        crouched = next(
-            (person for person in people_inside if person.is_crouching), None
-        )
-        if crouched is not None:
-            self._crouch_latch.fire(crouched, now)
+        for key, person in person_keys.items():
+            if not person.is_crouching or not self._history.dropped_height(
+                key, CROUCH_HEIGHT_DROP_RATIO, CROUCH_HEIGHT_MIN_HISTORY_SECONDS, now
+            ):
+                continue
+            if self._crouch_dwell.tick(key, now) >= self._crouch_seconds:
+                self._crouch_latch.fire(person, now)
         held_crouch = self._crouch_latch.active(now)
         if held_crouch is not None:
             signals.append(ThreatSignal(ThreatRule.CROUCHING, held_crouch))
@@ -567,35 +691,57 @@ class ThreatAssessor:
         if held_weapon is not None:
             signals.append(ThreatSignal(ThreatRule.WEAPON, held_weapon))
 
-        hands_up = next(
-            (
-                person
-                for person in chain(people_inside, people_outside)
-                if person.is_hands_up
-            ),
-            None,
-        )
-        if hands_up is not None:
-            self._hands_up_latch.fire(hands_up, now)
+        for key, person in all_person_keys.items():
+            if not person.is_hands_up:
+                continue
+            if self._hands_up_dwell.tick(key, now) >= self._hands_up_seconds:
+                self._hands_up_latch.fire(person, now)
         held_hands_up = self._hands_up_latch.active(now)
         if held_hands_up is not None:
             signals.append(ThreatSignal(ThreatRule.HANDS_UP, held_hands_up))
 
         # --- Regla 5: acoso físico / altercado ---------------------------
-        for (key_a, first), (key_b, second) in combinations(person_keys.items(), 2):
-            if not _is_invasive(
-                first, second, self._proximity_overlap, self._proximity_distance
-            ):
+        close_pairs = [
+            (key_a, first, key_b, second)
+            for (key_a, first), (key_b, second) in combinations(person_keys.items(), 2)
+            if _is_invasive(first, second, self._proximity_overlap, self._proximity_distance)
+        ]
+        contacts: dict[str, set[str]] = {}
+        for key_a, _, key_b, _ in close_pairs:
+            contacts.setdefault(key_a, set()).add(key_b)
+            contacts.setdefault(key_b, set()).add(key_a)
+        active_pairs: set[str] = set()
+        for key_a, first, key_b, second in close_pairs:
+            # Grupo o fila: ambos tienen más gente pegada que solo el otro.
+            cluster = {key_a, key_b} | contacts[key_a] | contacts[key_b]
+            if len(cluster) >= GROUP_SUPPRESS_SIZE:
                 continue
             pair_key = f"pair:{min(key_a, key_b)}|{max(key_a, key_b)}"
+            active_pairs.add(pair_key)
             elapsed = self._pair_dwell.tick(pair_key, now)
-            if elapsed >= self._proximity_seconds:
+            if pair_key not in self._pair_converged:
+                # Se decide al empezar el contacto: ¿venían de lejos?
+                before = self._history.distance_ago(key_a, key_b, CONVERGE_SECONDS, now)
+                current = first.centroid_distance(second)
+                self._pair_converged[pair_key] = (
+                    before is not None and current <= CONVERGE_RATIO * before
+                )
+            if elapsed >= self._proximity_seconds and self._pair_converged[pair_key]:
                 signals.append(
                     ThreatSignal(ThreatRule.PROXIMITY, first, second, elapsed)
                 )
+        for pair_key in [k for k in self._pair_converged if k not in active_pairs]:
+            del self._pair_converged[pair_key]
 
-        for registry in (self._person_dwell, self._vehicle_dwell, self._pair_dwell):
+        for registry in (
+            self._person_dwell,
+            self._vehicle_dwell,
+            self._pair_dwell,
+            self._hands_up_dwell,
+            self._crouch_dwell,
+        ):
             registry.sweep(now)
+        self._history.sweep(now)
 
         held_weapons: tuple[Detection, ...]
         if weapons:

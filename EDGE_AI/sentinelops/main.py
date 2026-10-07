@@ -29,6 +29,8 @@ from .evidence import EvidenceError, EvidenceStore
 from .notifier import AlertEvent, AlertNotifier
 from .stream_server import FramePublisher, StreamServer
 from .zone import (
+    CROUCH_HOLD_SECONDS,
+    HANDS_UP_HOLD_SECONDS,
     PERSON_LOITER_SECONDS,
     PROXIMITY_SECONDS,
     VEHICLE_LOITER_SECONDS,
@@ -57,6 +59,8 @@ _NON_CONFIG_ARGS = (
     "person_loiter",
     "vehicle_loiter",
     "proximity",
+    "hands_up_hold",
+    "crouch_hold",
     "inference_every",
     "calibrate",
     "zona_completa",
@@ -71,6 +75,8 @@ class RuntimeOptions:
     person_loiter_seconds: float
     vehicle_loiter_seconds: float
     proximity_seconds: float
+    hands_up_hold_seconds: float
+    crouch_hold_seconds: float
     inference_every: int
     calibrate: bool
     # Todo el cuadro es la zona vigilada (cámara vinculada desde el panel, sin ratón).
@@ -177,6 +183,18 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         type=float,
         dest="proximity",
         help=f"Segundos de proximidad invasiva -> ROJO. Def: {PROXIMITY_SECONDS}.",
+    )
+    parser.add_argument(
+        "--hands-up-hold",
+        type=float,
+        dest="hands_up_hold",
+        help=f"Segundos con ambos brazos arriba -> ROJO. Def: {HANDS_UP_HOLD_SECONDS}.",
+    )
+    parser.add_argument(
+        "--crouch-hold",
+        type=float,
+        dest="crouch_hold",
+        help=f"Segundos agachado en la zona -> ROJO. Def: {CROUCH_HOLD_SECONDS}.",
     )
     parser.add_argument(
         "--inference-every",
@@ -431,6 +449,8 @@ def run(config: Config, options: RuntimeOptions) -> int:
                 person_loiter_seconds=options.person_loiter_seconds,
                 vehicle_loiter_seconds=options.vehicle_loiter_seconds,
                 proximity_seconds=options.proximity_seconds,
+                hands_up_hold_seconds=options.hands_up_hold_seconds,
+                crouch_hold_seconds=options.crouch_hold_seconds,
             )
 
             # El stream siguió llenando el búfer durante la calibración.
@@ -612,6 +632,8 @@ def main(argv: list[str] | None = None) -> int:
             person_loiter_seconds=extra["person_loiter"] or PERSON_LOITER_SECONDS,
             vehicle_loiter_seconds=extra["vehicle_loiter"] or VEHICLE_LOITER_SECONDS,
             proximity_seconds=extra["proximity"] or PROXIMITY_SECONDS,
+            hands_up_hold_seconds=extra["hands_up_hold"] or HANDS_UP_HOLD_SECONDS,
+            crouch_hold_seconds=extra["crouch_hold"] or CROUCH_HOLD_SECONDS,
             inference_every=inference_every,
             zona_completa=bool(extra["zona_completa"]),
             # Sin ventana no hay ratón: headless nunca calibra.
