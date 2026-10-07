@@ -3,7 +3,7 @@
 import reflex as rx
 
 from ...estado_ui import EstadoUI
-from ...estilos import ACENTO, LINEA, ROJO, TEXTO, TEXTO_3, VERDE, VIDEO, tarjeta, titulo
+from ...estilos import ACENTO, LINEA, ROJO, TEXTO, TEXTO_3, VERDE, VELO, VIDEO, tarjeta, titulo
 from ...state import State
 
 
@@ -50,7 +50,7 @@ def _celda(tile) -> rx.Component:
             right="0",
             bottom="0",
             padding="3px 6px",
-            background="rgba(2, 6, 23, 0.78)",
+            background=VELO,
         ),
         on_click=EstadoUI.proyectar(tile["id"]),
         title=tile["nombre"],

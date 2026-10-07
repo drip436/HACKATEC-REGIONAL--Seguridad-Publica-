@@ -2,7 +2,7 @@
 
 import reflex as rx
 
-from ...estilos import ALTO_ENCABEZADO, ACENTO, ACENTO_SUAVE, AMBAR, BORDE, FONDO, LINEA, ROJO, SUPERFICIE, SUPERFICIE_2, TEXTO, TEXTO_2, TEXTO_3, VERDE
+from ...estilos import ALTO_ENCABEZADO, ACENTO, ACENTO_SUAVE, AMBAR, BORDE, FONDO, LINEA, MARCA, ROJO, SUPERFICIE, SUPERFICIE_2, TEXTO, TEXTO_2, TEXTO_3, VERDE
 from ...state import State
 from .panel_alertas import panel_alertas
 
@@ -105,15 +105,16 @@ def _encabezado(activa: str) -> rx.Component:
     return rx.flex(
         rx.hstack(
             rx.center(
-                rx.icon("shield", size=16, color=FONDO),
+                rx.icon("shield", size=16, color=ACENTO),
                 width="28px",
                 height="28px",
                 border_radius="7px",
-                background=ACENTO,
+                background=MARCA,
+                border=f"1px solid {ACENTO}",
                 flex_shrink="0",
             ),
             rx.vstack(
-                rx.text("SentinelOps", size="3", weight="bold", color=TEXTO, line_height="1.1"),
+                rx.text("Sentinel", rx.text.span("Ops", color=ACENTO), size="3", weight="bold", color=TEXTO, line_height="1.1"),
                 rx.text(
                     "Monitoreo de seguridad · Región Sur-Sureste",
                     size="1",

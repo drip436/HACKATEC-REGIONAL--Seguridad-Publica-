@@ -19,31 +19,31 @@ const ZOOM_MAX_ENCUADRE = 15;
 const ZOOM_MIN_MARCAR = 15;
 
 const CSS = `
-.so-mapa { width: 100%; border-radius: 8px; background: #0b1220; z-index: 0; border: 1px solid #334155; }
+.so-mapa { width: 100%; border-radius: 8px; background: #061f20; z-index: 0; border: 1px solid #1f5f60; }
 /* Mapa base oscuro y apagado: los colores quedan para incidentes, patrullas y zonas. */
 .so-mapa .leaflet-tile-pane { filter: brightness(1.25) contrast(0.95); }
-.so-mapa .leaflet-tooltip { background: #0f172a; color: #e2e8f0; border: 1px solid #334155; border-radius: 6px;
+.so-mapa .leaflet-tooltip { background: #07292a; color: #f1f5f2; border: 1px solid #1f5f60; border-radius: 6px;
   box-shadow: 0 2px 8px rgba(0,0,0,.4); font: 12px/1.4 Inter, system-ui, sans-serif; padding: 4px 8px; }
 .so-mapa .leaflet-tooltip::before { display: none; }
-.so-mapa .leaflet-control-attribution { font-size: 10px; background: rgba(15,23,42,.8); color: #94a3b8; }
-.so-mapa .leaflet-control-attribution a { color: #cbd5e1; }
-.so-mapa .leaflet-bar { border: 1px solid #334155; }
-.so-mapa .leaflet-bar a { background: #1e293b; color: #e2e8f0; border-bottom-color: #334155; }
-.so-mapa .leaflet-bar a:hover { background: #273449; color: #fff; }
-.so-mapa .leaflet-bar a.leaflet-disabled { background: #172033; color: #64748b; }
+.so-mapa .leaflet-control-attribution { font-size: 10px; background: rgba(7,41,42,.8); color: #8fb0ab; }
+.so-mapa .leaflet-control-attribution a { color: #c9d8d4; }
+.so-mapa .leaflet-bar { border: 1px solid #1f5f60; }
+.so-mapa .leaflet-bar a { background: #0d3b3c; color: #f1f5f2; border-bottom-color: #1f5f60; }
+.so-mapa .leaflet-bar a:hover { background: #124a4b; color: #fff; }
+.so-mapa .leaflet-bar a.leaflet-disabled { background: #0a3132; color: #5f807b; }
 .so-alerta { display: block; width: 12px; height: 12px; border-radius: 50%; background: ${ROJO};
   border: 2px solid #fff; box-shadow: 0 0 0 1px rgba(17,24,39,.25); cursor: pointer; }
 .so-alerta.so-resuelto { background: ${VERDE}; }
 .so-alerta.so-sel { box-shadow: 0 0 0 1px rgba(17,24,39,.25), 0 0 0 5px rgba(239,68,68,.35); }
 .so-alerta.so-resuelto.so-sel { box-shadow: 0 0 0 1px rgba(17,24,39,.25), 0 0 0 5px rgba(34,197,94,.35); }
-.so-camara { display: block; width: 9px; height: 9px; border-radius: 2px; background: #cbd5e1; border: 1.5px solid #0f172a; }
-.so-camara.so-inactiva { background: #64748b; }
+.so-camara { display: block; width: 9px; height: 9px; border-radius: 2px; background: #c9d8d4; border: 1.5px solid #07292a; }
+.so-camara.so-inactiva { background: #5f807b; }
 .so-unidad { display: block; width: 10px; height: 10px; border-radius: 50%; background: ${AZUL};
   border: 2px solid #fff; box-shadow: 0 0 0 1px rgba(17,24,39,.25); }
 .so-patrulla { display: block; width: 14px; height: 14px; border-radius: 50%; background: ${AZUL};
   border: 2px solid #fff; box-shadow: 0 0 0 4px rgba(59,130,246,.3); }
 .so-patrulla.so-llego { box-shadow: 0 0 0 4px rgba(34,197,94,.35); }
-.so-rondin { display: block; width: 12px; height: 12px; border-radius: 50%; border: 2.5px solid #22d3ee; background: #0f172a; }
+.so-rondin { display: block; width: 12px; height: 12px; border-radius: 50%; border: 2.5px solid #c8b88e; background: #07292a; }
 `;
 
 // Distancia aproximada en metros entre [lat, lng]: suficiente para repartir el avance.

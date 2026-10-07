@@ -108,7 +108,7 @@ def _leyenda(calor: bool = False) -> rx.Component:
         ]
     return rx.hstack(
         *items,
-        _leyenda_item(_punto("#cbd5e1", borde=f"1.5px solid {FONDO}", radio="2px", lado="9px"), "Cámara"),
+        _leyenda_item(_punto(TEXTO_2, borde=f"1.5px solid {FONDO}", radio="2px", lado="9px"), "Cámara"),
         spacing="4",
         wrap="wrap",
     )

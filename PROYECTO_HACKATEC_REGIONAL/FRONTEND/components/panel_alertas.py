@@ -329,7 +329,7 @@ def panel_alertas() -> rx.Component:
                 height=f"calc(100% - {ALTO_ENCABEZADO})",
                 background=SUPERFICIE,
                 border_left=BORDE,
-                box_shadow="-12px 0 32px rgba(2, 6, 23, 0.45)",
+                box_shadow="-12px 0 32px rgba(3, 21, 22, 0.5)",
                 # Sin z-index propio: los menús de los selectores se pintan encima por orden del DOM.
                 z_index="auto",
             ),

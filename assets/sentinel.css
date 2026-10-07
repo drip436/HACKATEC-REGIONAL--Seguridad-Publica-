@@ -3,14 +3,25 @@
   --heading-font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
+/* Colores del logo: dorado como acento (con texto oscuro encima) y paneles en verde azulado. */
+.radix-themes,
+.radix-themes[data-accent-color="gold"] {
+  --accent-9: #c8b88e;
+  --accent-10: #d6c8a2;
+  --accent-contrast: #07292a;
+  --color-background: #07292a;
+  --color-panel-solid: #0d3b3c;
+  --color-panel-translucent: rgba(13, 59, 60, 0.92);
+}
+
 body {
   -webkit-font-smoothing: antialiased;
-  background: #0f172a;
+  background: #07292a;
 }
 
 * {
   scrollbar-width: thin;
-  scrollbar-color: #334155 transparent;
+  scrollbar-color: #1f5f60 transparent;
 }
 
 /* Punto "en vivo" y celdas con una alerta abierta. */
@@ -29,7 +40,7 @@ body {
 .so-sin-senal {
   background:
     repeating-linear-gradient(0deg, rgba(148, 163, 184, 0.06) 0 1px, transparent 1px 3px),
-    #020617;
+    #031516;
 }
 
 @media (prefers-reduced-motion: reduce) {
