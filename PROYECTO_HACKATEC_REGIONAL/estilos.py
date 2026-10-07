@@ -1,42 +1,59 @@
-"""Paleta y estilos compartidos del panel (tema claro, sobrio).
+"""Paleta y estilos compartidos del panel (tema claro con los colores del logo).
 
-Un solo color de acento (verde azulado) para lo interactivo. Los demás colores
-tienen un significado fijo y no se usan para decorar: rojo = incidente,
-azul = patrulla, verde = caso resuelto.
+Fondo casi blanco, el verde azulado del logo como único color de acento y su
+dorado solo para detalles de marca. Los demás colores tienen un significado
+fijo y no se usan para decorar: rojo = incidente, azul = patrulla,
+verde = caso resuelto, ámbar = advertencia.
 """
 
 import reflex as rx
 
-FONDO = "#f5f6f8"
+# Verde azulado y dorado tomados del logo de SentinelOps.
+MARCA = "#0f5152"
+ORO = "#b0975a"
+FONDO = "#f4f6f2"
 SUPERFICIE = "#ffffff"
-SUPERFICIE_2 = "#f9fafb"
-LINEA = "#e5e7eb"
+SUPERFICIE_2 = "#eef2ee"
+LINEA = "#d5ddd8"
 BORDE = f"1px solid {LINEA}"
-TEXTO = "#111827"
-TEXTO_2 = "#4b5563"
-TEXTO_3 = "#6b7280"
-ACENTO = "#0f766e"
-ACENTO_SUAVE = "#ecfdf5"
+TEXTO = "#0c3536"
+TEXTO_2 = "#3d5c5b"
+TEXTO_3 = "#64807d"
+ACENTO = MARCA
+ACENTO_SUAVE = "rgba(15, 81, 82, 0.1)"
 
 ROJO = "#dc2626"
 AZUL = "#2563eb"
 VERDE = "#16a34a"
+AMBAR = "#b45309"
+# El video y las capturas conservan fondo oscuro: el encuadre no compite con la imagen.
+VIDEO = "#031516"
+# Velo y texto de los rótulos superpuestos al video.
+VELO = "rgba(3, 21, 22, 0.75)"
+SOBRE_VIDEO = "#f1f5f2"
+SOBRE_VIDEO_2 = "#a9c2bd"
 
 # Colores de estado: reservados para severidad y estado, nunca para series.
-COLOR_SEVERIDAD = {"critica": "#b91c1c", "alta": "#c2410c", "media": "#a16207", "baja": "#4b5563"}
+COLOR_SEVERIDAD = {"critica": "#b91c1c", "alta": "#c2410c", "media": "#a16207", "baja": "#64807d"}
 COLOR_ESTADO = {
     "pendiente": "#a16207",
     "validado": "#0f766e",
     "confirmado": "#15803d",
-    "descartado": "#6b7280",
+    "descartado": "#64807d",
 }
+
+# Alto del encabezado fijo: el riel y el panel lateral empiezan debajo.
+ALTO_ENCABEZADO = "56px"
 
 TARJETA = {
     "width": "100%",
-    "padding": "1.25rem",
+    "padding": "1rem",
     "border": BORDE,
-    "border_radius": "12px",
+    "border_radius": "10px",
     "background": SUPERFICIE,
+    "position": "relative",
+    # Esquinas doradas tipo visor (assets/sentinel.css).
+    "class_name": "so-tarjeta",
 }
 
 
@@ -46,7 +63,7 @@ def tarjeta(*hijos, **props) -> rx.Component:
 
 def titulo(texto: str, *derecha: rx.Component) -> rx.Component:
     return rx.hstack(
-        rx.heading(texto, size="3", weight="medium", color=TEXTO),
+        rx.heading(texto, size="2", weight="medium", color=TEXTO_2, text_transform="uppercase", letter_spacing="0.06em"),
         *derecha,
         justify="between",
         align="center",

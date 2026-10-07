@@ -19,10 +19,10 @@ const ZOOM_MAX_ENCUADRE = 15;
 const ZOOM_MIN_MARCAR = 15;
 
 const CSS = `
-.so-mapa { width: 100%; border-radius: 10px; background: #eef0f3; z-index: 0; border: 1px solid #e5e7eb; }
+.so-mapa { width: 100%; border-radius: 8px; background: #eef2ee; z-index: 0; border: 1px solid #d5ddd8; }
 /* Mapa base apagado: los colores quedan para incidentes, patrullas y zonas. */
 .so-mapa .leaflet-tile-pane { filter: grayscale(0.85) brightness(1.04) contrast(0.92); }
-.so-mapa .leaflet-tooltip { background: #111827; color: #f9fafb; border: 0; border-radius: 6px;
+.so-mapa .leaflet-tooltip { background: #0c3536; color: #f9fafb; border: 0; border-radius: 6px;
   box-shadow: 0 2px 8px rgba(0,0,0,.15); font: 12px/1.4 Inter, system-ui, sans-serif; padding: 4px 8px; }
 .so-mapa .leaflet-tooltip::before { display: none; }
 .so-mapa .leaflet-control-attribution { font-size: 10px; background: rgba(255,255,255,.8); }
@@ -38,7 +38,7 @@ const CSS = `
 .so-patrulla { display: block; width: 14px; height: 14px; border-radius: 50%; background: ${AZUL};
   border: 2px solid #fff; box-shadow: 0 0 0 4px rgba(37,99,235,.22); }
 .so-patrulla.so-llego { box-shadow: 0 0 0 4px rgba(22,163,74,.3); }
-.so-rondin { display: block; width: 12px; height: 12px; border-radius: 50%; border: 2.5px solid #0f766e; background: #fff; }
+.so-rondin { display: block; width: 12px; height: 12px; border-radius: 50%; border: 2.5px solid #0f5152; background: #fff; }
 `;
 
 // Distancia aproximada en metros entre [lat, lng]: suficiente para repartir el avance.

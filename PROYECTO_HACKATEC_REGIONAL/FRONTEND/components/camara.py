@@ -1,8 +1,10 @@
-"""Cámara vinculada (p. ej. el teléfono con IP Webcam): video con la detección en vivo."""
+"""Reproductor principal: la cámara vinculada (p. ej. el teléfono con IP Webcam) con la
+detección en vivo, o la última captura de la cámara elegida en el mosaico."""
 
 import reflex as rx
 
-from ...estilos import BORDE, SUPERFICIE_2, TEXTO, TEXTO_2, TEXTO_3, tarjeta, titulo
+from ...estado_ui import EstadoUI
+from ...estilos import AMBAR, BORDE, ROJO, SOBRE_VIDEO, TEXTO, TEXTO_2, TEXTO_3, VELO, VIDEO, tarjeta, titulo
 from ...state import State
 
 _NIVEL = {
@@ -20,9 +22,40 @@ def _insignia_nivel() -> rx.Component:
     )
 
 
+def _rotulo(*hijos, **props) -> rx.Component:
+    """Etiqueta superpuesta al video, estilo HUD."""
+    return rx.hstack(
+        *hijos,
+        spacing="2",
+        align="center",
+        position="absolute",
+        padding="2px 8px",
+        border_radius="4px",
+        background=VELO,
+        font_size="11px",
+        font_weight="600",
+        letter_spacing="0.05em",
+        color=SOBRE_VIDEO,
+        **props,
+    )
+
+
+def _marco(*hijos) -> rx.Component:
+    return rx.box(
+        *hijos,
+        position="relative",
+        width="100%",
+        aspect_ratio="16 / 9",
+        background=VIDEO,
+        border_radius="8px",
+        overflow="hidden",
+        border=BORDE,
+    )
+
+
 def _video() -> rx.Component:
     return rx.vstack(
-        rx.box(
+        _marco(
             rx.image(
                 src=State.url_transmision,
                 alt="Video en vivo con la detección de personas y el semáforo de riesgo",
@@ -30,12 +63,12 @@ def _video() -> rx.Component:
                 height="100%",
                 object_fit="contain",
             ),
-            width="100%",
-            aspect_ratio="16 / 9",
-            background="#111827",
-            border_radius="8px",
-            overflow="hidden",
-            border=BORDE,
+            _rotulo(
+                rx.box(width="7px", height="7px", border_radius="50%", background=ROJO, class_name="so-pulso"),
+                "EN VIVO",
+                top="8px",
+                right="8px",
+            ),
         ),
         rx.hstack(
             _insignia_nivel(),
@@ -68,10 +101,10 @@ def _aviso(icono: str, texto, detalle=None) -> rx.Component:
         ),
         width="100%",
         aspect_ratio="16 / 9",
-        background=SUPERFICIE_2,
         border=BORDE,
         border_radius="8px",
         padding="1rem",
+        class_name="so-sin-senal",
     )
 
 
@@ -145,7 +178,7 @@ def _estado_ubicacion() -> rx.Component:
                 "Ubicación aproximada (±", State.ubicacion_precision_m, " m). Si la cámara está en otro punto, "
                 "corrige latitud y longitud.",
                 size="1",
-                color="#a16207",
+                color=AMBAR,
             ),
         ),
         (
@@ -158,7 +191,7 @@ def _estado_ubicacion() -> rx.Component:
                 "No se pudo ubicar automáticamente (", State.ubicacion_motivo, "). Busca la dirección, "
                 "pega un enlace de Google Maps o haz clic en el mapa.",
                 size="1",
-                color="#a16207",
+                color=AMBAR,
             ),
         ),
         (
@@ -166,7 +199,7 @@ def _estado_ubicacion() -> rx.Component:
             rx.text(
                 "El navegador no compartió la ubicación. Busca la dirección o haz clic en el mapa.",
                 size="1",
-                color="#a16207",
+                color=AMBAR,
             ),
         ),
         rx.text(
@@ -296,11 +329,51 @@ def dialogo_vincular() -> rx.Component:
     )
 
 
+def _captura() -> rx.Component:
+    """Cámara del mosaico sin transmisión propia: su última captura de evidencia."""
+    camara = EstadoUI.proyeccion
+    return rx.vstack(
+        rx.cond(
+            camara["snapshot_url"] != "",
+            _marco(
+                rx.image(
+                    src=camara["snapshot_url"],
+                    alt="Última captura de la cámara, sin identificación de personas",
+                    width="100%",
+                    height="100%",
+                    object_fit="contain",
+                ),
+                _rotulo("ÚLTIMA CAPTURA · ", camara["hora"], top="8px", right="8px"),
+            ),
+            _aviso("video-off", "Esta cámara aún no tiene capturas. Su imagen aparecerá con su primera alerta."),
+        ),
+        rx.hstack(
+            rx.badge(camara["etiqueta"], color_scheme="gray", variant="soft"),
+            rx.text(camara["nombre"], size="2", color=TEXTO_2),
+            rx.spacer(),
+            rx.button(
+                rx.icon("radio", size=14),
+                "Volver a en vivo",
+                on_click=EstadoUI.proyectar_vivo,
+                variant="soft",
+                size="1",
+                cursor="pointer",
+            ),
+            align="center",
+            width="100%",
+            wrap="wrap",
+            spacing="2",
+        ),
+        spacing="2",
+        width="100%",
+    )
+
+
 def camara_en_vivo() -> rx.Component:
     return tarjeta(
         rx.vstack(
             titulo(
-                "Cámara en vivo",
+                rx.cond(EstadoUI.proyecta_vivo, "Cámara en vivo", "Cámara seleccionada"),
                 rx.cond(
                     State.cam_vinculada,
                     rx.hstack(
@@ -319,7 +392,7 @@ def camara_en_vivo() -> rx.Component:
                     rx.button(rx.icon("link", size=14), "Vincular cámara", on_click=State.abrir_dialogo_camara, size="1"),
                 ),
             ),
-            _contenido(),
+            rx.cond(EstadoUI.proyecta_vivo, _contenido(), _captura()),
             rx.text(
                 "Detección de personas, posturas y armas con YOLOv8-Pose. No identifica a nadie: sin reconocimiento facial.",
                 size="1",

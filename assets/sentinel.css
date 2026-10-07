@@ -1,8 +1,68 @@
-/* Fuente del panel en todo Radix, incluidos los diálogos (se montan fuera de la página). */
 .radix-themes {
   --default-font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
   --heading-font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
 }
+
+/* Colores del logo: su verde azulado como acento y fondo casi blanco. */
+.radix-themes,
+.radix-themes[data-accent-color="teal"] {
+  --accent-9: #0f5152;
+  --accent-10: #0c4445;
+  --accent-contrast: #ffffff;
+  --color-background: #f4f6f2;
+}
+
 body {
   -webkit-font-smoothing: antialiased;
+  background: #f4f6f2;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #c3cec8 transparent;
+}
+
+/* Fondo de la página: casi blanco, con una retícula de puntos muy tenue. */
+.so-fondo {
+  background:
+    radial-gradient(circle at 1px 1px, rgba(15, 81, 82, 0.1) 1px, transparent 1.5px) 0 0 / 22px 22px,
+    #f4f6f2;
+  background-attachment: fixed;
+}
+
+/* Tarjetas: sombra ligera y esquinas doradas tipo visor. */
+.so-tarjeta { box-shadow: 0 1px 2px rgba(12, 53, 54, 0.06); }
+.so-tarjeta::before,
+.so-tarjeta::after {
+  content: "";
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border: 0 solid #b0975a;
+  pointer-events: none;
+}
+.so-tarjeta::before { top: -1px; left: -1px; border-top-width: 2px; border-left-width: 2px; border-top-left-radius: 10px; }
+.so-tarjeta::after { bottom: -1px; right: -1px; border-bottom-width: 2px; border-right-width: 2px; border-bottom-right-radius: 10px; }
+
+/* Punto "en vivo" y celdas con una alerta abierta. */
+@keyframes so-pulso {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+@keyframes so-pulso-borde {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.55); }
+  50% { box-shadow: 0 0 0 4px rgba(239, 68, 68, 0); }
+}
+.so-pulso { animation: so-pulso 1.6s ease-in-out infinite; }
+.so-tile-alerta { animation: so-pulso-borde 1.6s ease-in-out infinite; }
+
+/* Celda sin imagen: trama de líneas de un monitor CCTV sin señal. */
+.so-sin-senal {
+  background:
+    repeating-linear-gradient(0deg, rgba(12, 53, 54, 0.05) 0 1px, transparent 1px 3px),
+    #e9eeea;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .so-pulso, .so-tile-alerta { animation: none; }
 }
