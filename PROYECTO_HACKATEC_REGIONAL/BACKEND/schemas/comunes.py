@@ -31,6 +31,7 @@ TipoMensajeWS = Literal[
     "evento.nuevo",
     "evento.actualizado",
     "despacho.actualizado",
+    "atencion.actualizada",
     "pong",
 ]
 

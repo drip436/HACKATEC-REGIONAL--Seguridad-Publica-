@@ -34,9 +34,13 @@ class AlertEvent:
     detected_class: str
     confidence: float
     bounding_box: tuple[int, int, int, int]
+    # Nombre del lugar; el backend lo usa al autorregistrar una cámara nueva.
+    ubicacion: str | None = None
 
     def to_payload(self) -> dict[str, Any]:
+        extra = {"ubicacion": self.ubicacion} if self.ubicacion else {}
         return {
+            **extra,
             "sensor_id": self.sensor_id,
             "tipo_evento": self.event_type,
             "severidad": self.severity,

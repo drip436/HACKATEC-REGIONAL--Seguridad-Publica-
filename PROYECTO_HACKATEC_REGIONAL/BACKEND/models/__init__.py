@@ -2,6 +2,7 @@ from .enums import (
     ALIAS_TIPO_EVENTO,
     AccionAuditoria,
     Dependencia,
+    EstadoAtencion,
     EstadoEnvio,
     EstadoOperativo,
     EstadoValidacion,
@@ -9,15 +10,17 @@ from .enums import (
     TipoEvento,
     TipoSensor,
 )
-from .tablas import BitacoraAuditoria, CamaraSensor, DespachoInteroperable, EventoDetectado
+from .tablas import AtencionCampo, BitacoraAuditoria, CamaraSensor, DespachoInteroperable, EventoDetectado
 
 __all__ = [
     "ALIAS_TIPO_EVENTO",
     "AccionAuditoria",
+    "AtencionCampo",
     "BitacoraAuditoria",
     "CamaraSensor",
     "Dependencia",
     "DespachoInteroperable",
+    "EstadoAtencion",
     "EstadoEnvio",
     "EstadoOperativo",
     "EstadoValidacion",

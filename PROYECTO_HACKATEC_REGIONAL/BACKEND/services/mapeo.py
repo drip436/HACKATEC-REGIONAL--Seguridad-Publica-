@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from ..models import (
+    AtencionCampo,
     BitacoraAuditoria,
     CamaraSensor,
     Dependencia,
@@ -8,6 +9,7 @@ from ..models import (
     EventoDetectado,
 )
 from ..schemas import (
+    AtencionOut,
     Coordenadas,
     DespachoOut,
     EventoOut,
@@ -89,4 +91,23 @@ def auditoria_a_dto(b: BitacoraAuditoria) -> RegistroAuditoriaOut:
         hash_anterior=b.hash_anterior,
         hash_registro=b.hash_registro,
         timestamp_inmutable=a_utc(b.timestamp_inmutable),
+    )
+
+
+def atencion_a_dto(a: AtencionCampo) -> AtencionOut:
+    return AtencionOut(
+        id=_id(a.id),
+        evento_id=a.evento_id,
+        unidad=a.unidad,
+        estado=a.estado,
+        solicitado_por=a.solicitado_por,
+        origen=(a.origen_lat, a.origen_lng),
+        destino=(a.destino_lat, a.destino_lng),
+        ruta=[(p[0], p[1]) for p in a.ruta],
+        ruta_por_calles=a.ruta_por_calles,
+        distancia_m=a.distancia_m,
+        duracion_s=a.duracion_s,
+        despachada_en=a_utc(a.despachada_en),
+        llegada_estimada=a_utc(a.llegada_estimada),
+        llegada_en=a_utc(a.llegada_en) if a.llegada_en else None,
     )

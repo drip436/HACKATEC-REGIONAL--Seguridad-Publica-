@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import logging
+import time
+from pathlib import Path
 from types import TracebackType
 
 import cv2
@@ -35,6 +37,11 @@ class Camera:
         self._max_failures = max_failures
         self._capture: cv2.VideoCapture | None = None
         self._consecutive_failures = 0
+        # Un archivo de video (demo) se reproduce a su velocidad real y en bucle;
+        # una cámara o un stream se leen tal cual llegan.
+        self._is_file = isinstance(index, str) and Path(index).is_file()
+        self._frame_interval = 0.0
+        self._next_frame_at = 0.0
 
     def open(self) -> None:
         """Abre el dispositivo y verifica que entregue al menos un frame.
@@ -62,6 +69,10 @@ class Camera:
 
         self._capture = capture
         self._consecutive_failures = 0
+        if self._is_file:
+            fps = capture.get(cv2.CAP_PROP_FPS)
+            self._frame_interval = 1.0 / fps if 1.0 <= fps <= 120.0 else 1.0 / 30.0
+            self._next_frame_at = time.monotonic()
         actual_w = int(capture.get(cv2.CAP_PROP_FRAME_WIDTH))
         actual_h = int(capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
         LOGGER.info(
@@ -82,7 +93,16 @@ class Camera:
             raise CameraError("La cámara no está abierta; llama a open() primero.")
 
         while True:
+            if self._is_file:
+                espera = self._next_frame_at - time.monotonic()
+                if espera > 0:
+                    time.sleep(espera)
+                self._next_frame_at = max(self._next_frame_at + self._frame_interval, time.monotonic() - 0.5)
             ok, frame = self._capture.read()
+            if not ok and self._is_file:
+                # Fin del video de demostración: vuelve al inicio.
+                self._capture.set(cv2.CAP_PROP_POS_FRAMES, 0)
+                ok, frame = self._capture.read()
             if ok and frame is not None and frame.size > 0:
                 self._consecutive_failures = 0
                 if frame.shape[1] != self._width or frame.shape[0] != self._height:

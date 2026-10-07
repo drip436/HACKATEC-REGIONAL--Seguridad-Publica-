@@ -8,32 +8,28 @@ import random
 import uuid
 from datetime import datetime, timedelta
 
-from .campus import CENTRO_DEFECTO
 from .modelos import Camara, EventoHistorico
 
-# TODO(equipo): posiciones de ejemplo; sustituir por las reales del campus.
-_DLAT = 0.0014
-_DLNG = 0.0018
+# Dispersión de los eventos alrededor de su cámara (~130 m).
+_DISPERSION = 0.0012
 
 
-def _cam(id_: str, nombre: str, dlat: float, dlng: float, activa: bool = True) -> Camara:
-    return {
-        "id": id_,
-        "nombre": nombre,
-        "lat": round(CENTRO_DEFECTO[0] + dlat * _DLAT, 6),
-        "lng": round(CENTRO_DEFECTO[1] + dlng * _DLNG, 6),
-        "activa": activa,
-    }
+def _cam(id_: str, nombre: str, lat: float, lng: float, activa: bool = True) -> Camara:
+    return {"id": id_, "nombre": nombre, "lat": lat, "lng": lng, "activa": activa}
 
 
+# Cámaras de DEMOSTRACIÓN en espacios públicos de Mérida (ubicaciones aproximadas).
+# Las alertas que el simulador genera aquí son sintéticas: no son datos
+# oficiales de incidencia delictiva de esas zonas.
 CAMARAS: list[Camara] = [
-    _cam("CAM-05-PUERTA-OESTE", "Puerta Oeste", 0.35, -0.75),
-    _cam("CAM-12-ACCESO-NORTE", "Acceso Norte / Edificio A", 0.8, -0.3),
-    _cam("CAM-19-LABORATORIOS", "Laboratorios", 0.55, 0.6),
-    _cam("CAM-08-PATIO-CENTRAL", "Patio Central", -0.4, -0.45),
-    _cam("CAM-14-BIBLIOTECA", "Biblioteca", -0.75, -0.8, activa=False),
-    _cam("CAM-21-ESTACIONAMIENTO", "Estacionamiento Sur", -0.6, 0.55),
+    _cam("CAM-MID-PLAZA-GRANDE", "Plaza Grande (Centro)", 20.96706, -89.62373),
+    _cam("CAM-MID-SANTA-LUCIA", "Parque de Santa Lucía", 20.97055, -89.62186),
+    _cam("CAM-MID-MERCADO", "Mercado Lucas de Gálvez", 20.96171, -89.62196),
+    _cam("CAM-MID-LA-PLANCHA", "Gran Parque La Plancha", 20.97440, -89.61760),
+    _cam("CAM-MID-CAME", "Terminal CAME", 20.96560, -89.62930, activa=False),
+    _cam("CAM-MID-MONTEJO", "Monumento a la Patria (Paseo de Montejo)", 20.98977, -89.61695),
 ]
+CODIGOS_DEMO = frozenset(c["id"] for c in CAMARAS)
 
 # Peso relativo de cada cámara y de cada hora: sesga el histórico para que
 # existan franjas y zonas críticas reconocibles.
@@ -58,8 +54,8 @@ def generar_evento(
         "severidad": rng.choices(["baja", "media", "alta", "critica"], weights=[3, 4, 3, 1])[0],
         "confianza": round(rng.uniform(0.55, 0.97), 2),
         "timestamp": momento.astimezone().isoformat(timespec="seconds"),
-        "lat": round(camara["lat"] + rng.uniform(-0.00025, 0.00025), 6),
-        "lng": round(camara["lng"] + rng.uniform(-0.00025, 0.00025), 6),
+        "lat": round(camara["lat"] + rng.uniform(-_DISPERSION, _DISPERSION), 6),
+        "lng": round(camara["lng"] + rng.uniform(-_DISPERSION, _DISPERSION), 6),
         "snapshot_url": "",
         "estado": "pendiente",
     }

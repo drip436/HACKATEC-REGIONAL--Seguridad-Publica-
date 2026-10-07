@@ -92,6 +92,14 @@ EVIDENCE_JPEG_QUALITY: int = 85
 EVENT_TYPE: str = "INTRUSION_PERIMETRO"
 EVENT_SEVERITY: str = "ALTA"
 
+# --- Transmisión del video anotado (la muestra el panel) --------------------
+# Solo la propia máquina por defecto: el panel muestra este video desde el
+# navegador que corre junto al sensor. Para verlo desde otra máquina, define
+# SENTINELOPS_STREAM_HOST=0.0.0.0 y un SENTINEL_STREAM_TOKEN.
+STREAM_HOST: str = os.getenv("SENTINELOPS_STREAM_HOST", "127.0.0.1")
+STREAM_PORT: int = int(os.getenv("SENTINELOPS_STREAM_PORT", "8090"))
+STREAM_TOKEN: str | None = os.getenv("SENTINEL_STREAM_TOKEN") or None
+
 # --- Runtime ---------------------------------------------------------------
 SHOW_PREVIEW: bool = True
 LOG_LEVEL: str = "INFO"
@@ -104,6 +112,8 @@ class Config:
     sensor_id: str = SENSOR_ID
     lat: float = LAT
     lng: float = LNG
+    # Nombre del lugar: el backend lo usa al registrar la cámara y el mapa lo muestra.
+    ubicacion: str = ""
 
     backend_url: str = BACKEND_URL
     sensor_api_key: str | None = SENSOR_API_KEY
@@ -135,6 +145,11 @@ class Config:
     event_type: str = EVENT_TYPE
     event_severity: str = EVENT_SEVERITY
 
+    stream_enabled: bool = True
+    stream_host: str = STREAM_HOST
+    stream_port: int = STREAM_PORT
+    stream_token: str | None = STREAM_TOKEN
+
     show_preview: bool = SHOW_PREVIEW
     log_level: str = LOG_LEVEL
 
@@ -152,6 +167,8 @@ class Config:
             raise ValueError("COOLDOWN_SECONDS no puede ser negativo")
         if self.camera_index < 0:
             raise ValueError("CAMERA_INDEX no puede ser negativo")
+        if not (-90.0 <= self.lat <= 90.0 and -180.0 <= self.lng <= 180.0):
+            raise ValueError("LAT/LNG fuera de rango")
         if not self.backend_url.startswith(("http://", "https://")):
             raise ValueError("BACKEND_URL debe empezar con http:// o https://")
 

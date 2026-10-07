@@ -2,7 +2,7 @@
 
 import reflex as rx
 
-from .BACKEND import crear_api, inicializar_bd
+from .BACKEND import ciclo_operativo, crear_api, inicializar_bd
 from .pages.analitica import analitica
 from .pages.auditoria import auditoria
 from .pages.operacion import operacion
@@ -10,6 +10,7 @@ from .state import State
 
 app = rx.App(api_transformer=crear_api())
 app.register_lifespan_task(inicializar_bd)
+app.register_lifespan_task(ciclo_operativo)
 app.add_page(operacion, route="/", title="SentinelOps · Operación", on_load=State.iniciar)
 app.add_page(
     analitica,

@@ -71,11 +71,18 @@ def registrar_sensor(datos: SensorIn, *, actor: str, ip_origen: str) -> SensorOu
         return sensor_a_dto(sensor)
 
 
-def autoregistrar(session: Session, *, codigo: str, coordenadas: Coordenadas, ip_origen: str) -> CamaraSensor:
+def autoregistrar(
+    session: Session,
+    *,
+    codigo: str,
+    coordenadas: Coordenadas,
+    ip_origen: str,
+    nombre_ubicacion: str | None = None,
+) -> CamaraSensor:
     return _crear(
         session,
         codigo=codigo,
-        nombre_ubicacion=f"Auto-registrado ({codigo})",
+        nombre_ubicacion=nombre_ubicacion or f"Auto-registrado ({codigo})",
         tipo_sensor=TipoSensor.OTRO,
         estado=EstadoOperativo.ACTIVO,
         ip_rtsp_url=None,

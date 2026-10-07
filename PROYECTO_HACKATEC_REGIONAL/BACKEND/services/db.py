@@ -33,7 +33,13 @@ _TRIGGERS_SQLITE = (
     """,
 )
 
-_TABLAS = ("camaras_sensores", "eventos_detectados", "despachos_interoperables", "bitacora_auditoria")
+_TABLAS = (
+    "camaras_sensores",
+    "eventos_detectados",
+    "despachos_interoperables",
+    "atenciones_campo",
+    "bitacora_auditoria",
+)
 
 _TRIGGERS_POSTGRES = (
     """

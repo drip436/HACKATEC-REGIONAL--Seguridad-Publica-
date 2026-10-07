@@ -1,4 +1,6 @@
+from .atenciones import AtencionIn, AtencionOut
 from .auditoria import PaginaAuditoria, RegistroAuditoriaOut, VerificacionCadenaOut
+from .camaras import CamaraVinculadaOut, VinculacionIn
 from .comunes import RESPUESTAS_ERROR, Coordenadas, ErrorRespuesta, MensajeWS
 from .despachos import (
     AcuseFederacionOut,
@@ -12,6 +14,10 @@ from .eventos import AlertaSensorIn, EventoOut, MetadatosDeteccion, ValidacionIn
 from .sensores import SensorIn, SensorOut, SensorUpdateIn
 
 __all__ = [
+    "AtencionIn",
+    "AtencionOut",
+    "CamaraVinculadaOut",
+    "VinculacionIn",
     "RESPUESTAS_ERROR",
     "AcuseFederacionOut",
     "AlertaSensorIn",
