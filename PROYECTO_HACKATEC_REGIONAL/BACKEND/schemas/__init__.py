@@ -1,6 +1,6 @@
 from .atenciones import AtencionIn, AtencionOut, UnidadOut
 from .auditoria import PaginaAuditoria, RegistroAuditoriaOut, VerificacionCadenaOut
-from .camaras import CamaraVinculadaOut, VinculacionIn
+from .camaras import CamaraDemoOut, CamaraVinculadaOut, VinculacionIn
 from .comunes import RESPUESTAS_ERROR, Coordenadas, ErrorRespuesta, LugarOut, MensajeWS, UbicacionAutoOut
 from .despachos import (
     AcuseFederacionOut,
@@ -17,6 +17,7 @@ __all__ = [
     "AtencionIn",
     "AtencionOut",
     "UnidadOut",
+    "CamaraDemoOut",
     "CamaraVinculadaOut",
     "VinculacionIn",
     "RESPUESTAS_ERROR",

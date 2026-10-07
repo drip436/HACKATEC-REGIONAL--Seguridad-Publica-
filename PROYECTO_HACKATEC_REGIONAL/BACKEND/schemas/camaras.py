@@ -39,3 +39,13 @@ class CamaraVinculadaOut(BaseModel):
     desde: datetime | None = None
     codigo_salida: int | None = None
     ultimas_lineas: list[str] = Field(default_factory=list)
+
+
+class CamaraDemoOut(BaseModel):
+    """Cámara de demostración: un video grabado y ya anotado por el Edge AI."""
+
+    id: str
+    nombre: str
+    lat: float
+    lng: float
+    video_url: str = Field(examples=["/static/videos/CAM-DEMO-PLAZA.mp4"])

@@ -166,6 +166,16 @@ async def obtener_camaras() -> list[dict]:
     return [_camara(s) for s in await _pedir("GET", "/sensores")]
 
 
+async def obtener_camaras_demo() -> list[dict]:
+    """Cámaras de demostración (video grabado y ya anotado por el Edge AI)."""
+    if MOCK:
+        return []
+    return [
+        {"id": c["id"], "nombre": c["nombre"], "lat": c["lat"], "lng": c["lng"], "video_url": _url_evidencia(c["video_url"])}
+        for c in await _pedir("GET", "/camaras-demo")
+    ]
+
+
 async def obtener_eventos(limite: int = 100) -> list[dict]:
     """Eventos más recientes primero, ya con el estado de su despacho."""
     if MOCK:

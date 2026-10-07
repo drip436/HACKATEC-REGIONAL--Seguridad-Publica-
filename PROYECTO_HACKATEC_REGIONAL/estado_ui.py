@@ -9,10 +9,22 @@ from typing import TypedDict
 
 import reflex as rx
 
+from . import api_client
+from .modelos import Camara
 from .state import SEVERIDADES_VIOLENCIA, State
 
 TILES_MOSAICO = 10
 _ORDEN_SEVERIDAD = ("critica", "alta", "media", "baja")
+
+
+class CamaraDemo(TypedDict):
+    """Cámara de demostración: un video grabado que el Edge AI ya anotó."""
+
+    id: str
+    nombre: str
+    lat: float
+    lng: float
+    video_url: str
 
 
 class Tile(TypedDict):
@@ -22,6 +34,8 @@ class Tile(TypedDict):
     etiqueta: str
     nombre: str
     snapshot_url: str
+    # Video de demostración ya anotado por el Edge AI; "" si la cámara no tiene.
+    video_url: str
     hora: str
     activa: bool
     en_vivo: bool
@@ -35,6 +49,7 @@ def _tile_vacio(posicion: int) -> Tile:
         "etiqueta": f"CCTV-{posicion:02d}",
         "nombre": "Sin cámara",
         "snapshot_url": "",
+        "video_url": "",
         "hora": "",
         "activa": False,
         "en_vivo": False,
@@ -49,16 +64,33 @@ def _duracion(segundos: float) -> str:
 
 
 class EstadoUI(State):
-    # Cámara proyectada en el reproductor principal; "" = la cámara en vivo.
+    # Cámara proyectada en el reproductor principal; "" = la cámara en vivo (o el primer video).
     camara_sel: str = ""
+    camaras_demo: list[CamaraDemo] = []
 
     def _es_vinculada(self, camara: dict) -> bool:
         return self.cam_vinculada and (camara["id"] == "vinculada" or camara["nombre"] == self.cam_nombre)
 
+    def _camaras_panel(self) -> list[dict]:
+        """Inventario + cámara vinculada + cámaras de demostración que no están en el inventario."""
+        conocidas = {c["id"] for c in self.camaras_mapa}
+        extra = [
+            {"id": c["id"], "nombre": c["nombre"], "lat": c["lat"], "lng": c["lng"], "activa": True}
+            for c in self.camaras_demo
+            if c["id"] not in conocidas
+        ]
+        return [*self.camaras_mapa, *extra]
+
+    @rx.var
+    def camaras_panel(self) -> list[Camara]:
+        """Cámaras que dibuja el mapa en vivo."""
+        return self._camaras_panel()
+
     @rx.var
     def mosaico(self) -> list[Tile]:
-        """Diez celdas: la cámara vinculada primero, luego el inventario (activas antes).
-        La miniatura es la captura de evidencia más reciente de cada cámara."""
+        """Diez celdas: la cámara vinculada primero, luego las que tienen video de
+        demostración y después el inventario (activas antes). Sin video, la miniatura
+        es la captura de evidencia más reciente de la cámara."""
         ultima: dict[str, dict] = {}
         en_alerta: set[str] = set()
         for alerta in self.alertas:  # de la más reciente a la más antigua
@@ -66,11 +98,14 @@ class EstadoUI(State):
                 ultima.setdefault(alerta["camara_id"], alerta)
             if alerta["estado"] == "pendiente" and alerta["severidad"] in SEVERIDADES_VIOLENCIA:
                 en_alerta.add(alerta["camara_id"])
+        videos = {c["id"]: c["video_url"] for c in self.camaras_demo}
 
-        camaras = sorted(self.camaras_mapa, key=lambda c: (not self._es_vinculada(c), not c["activa"]))
+        camaras = sorted(
+            self._camaras_panel(),
+            key=lambda c: (not self._es_vinculada(c), c["id"] not in videos, not c["activa"]),
+        )
         tiles: list[Tile] = []
         for posicion, camara in enumerate(camaras[:TILES_MOSAICO], start=1):
-            en_vivo = self._es_vinculada(camara)
             captura = ultima.get(camara["id"])
             tiles.append(
                 {
@@ -78,23 +113,27 @@ class EstadoUI(State):
                     "etiqueta": f"CCTV-{posicion:02d}",
                     "nombre": camara["nombre"],
                     "snapshot_url": captura["snapshot_url"] if captura else "",
+                    "video_url": videos.get(camara["id"], ""),
                     "hora": captura["hora"] if captura else "",
                     "activa": camara["activa"],
-                    "en_vivo": en_vivo,
+                    "en_vivo": self._es_vinculada(camara),
                     "en_alerta": camara["id"] in en_alerta,
-                    "elegida": camara["id"] == self.camara_sel or (en_vivo and not self.camara_sel),
+                    "elegida": False,
                 }
             )
+        # Proyectada: la que eligió el operador; si no, la cámara en vivo; si tampoco hay,
+        # el primer video de demostración (el reproductor no se queda vacío en la demo).
+        elegida = next((t for t in tiles if t["id"] == self.camara_sel), None) if self.camara_sel else None
+        elegida = elegida or next((t for t in tiles if t["en_vivo"]), None) or next((t for t in tiles if t["video_url"]), None)
+        if elegida:
+            elegida["elegida"] = True
         tiles += [_tile_vacio(posicion) for posicion in range(len(tiles) + 1, TILES_MOSAICO + 1)]
         return tiles
 
     @rx.var
     def proyeccion(self) -> Tile:
-        """Celda proyectada en el reproductor (vacía si se muestra la cámara en vivo)."""
-        for tile in self.mosaico:
-            if tile["id"] and tile["id"] == self.camara_sel:
-                return tile
-        return _tile_vacio(0)
+        """Celda proyectada en el reproductor (vacía si no hay ninguna cámara que mostrar)."""
+        return next((tile for tile in self.mosaico if tile["elegida"]), _tile_vacio(0))
 
     @rx.var
     def proyecta_vivo(self) -> bool:
@@ -132,9 +171,17 @@ class EstadoUI(State):
         return next((s for s in _ORDEN_SEVERIDAD if s in presentes), "")
 
     @rx.event
+    async def cargar_camaras_demo(self):
+        """Videos de demostración publicados en el backend (ninguno si la API no responde)."""
+        try:
+            self.camaras_demo = await api_client.obtener_camaras_demo()
+        except api_client.ErrorAPI:
+            self.camaras_demo = []
+
+    @rx.event
     def proyectar(self, camara_id: str):
         """Proyecta una cámara del mosaico y centra el mapa en ella."""
-        for camara in self.camaras_mapa:
+        for camara in self._camaras_panel():
             if camara_id and camara["id"] == camara_id:
                 self.camara_sel = camara_id
                 self._enfocar(camara["lat"], camara["lng"])

@@ -16,6 +16,8 @@ from .rutas_eventos import router as eventos_router
 from .rutas_evidencias import router as evidencias_router
 from .rutas_interoperabilidad import router as interop_router
 from .rutas_sensores import router as sensores_router
+from .rutas_videos import router as camaras_demo_router
+from .rutas_videos import router_archivos as videos_router
 from .rutas_websocket import router as ws_router
 
 DESCRIPCION = """
@@ -44,6 +46,7 @@ def crear_api() -> FastAPI:
             {"name": "Atención en campo", "description": "Unidades enviadas al lugar del evento (simulación)."},
             {"name": "Cámara vinculada", "description": "Lanza el sensor Edge AI sobre una cámara IP."},
             {"name": "Evidencias", "description": "Fotogramas del Edge AI (requieren clave de operador)."},
+            {"name": "Cámaras de demostración", "description": "Videos grabados ya anotados por el Edge AI."},
             {"name": "Sistema", "description": "Salud del servicio."},
         ],
     )
@@ -61,6 +64,7 @@ def crear_api() -> FastAPI:
         geocodificacion_router,
         ubicacion_router,
         camaras_router,
+        camaras_demo_router,
     )
     for router in routers:
         v1.include_router(router)
@@ -72,4 +76,5 @@ def crear_api() -> FastAPI:
     api.include_router(v1)
     api.include_router(ws_router)
     api.include_router(evidencias_router)
+    api.include_router(videos_router)
     return api

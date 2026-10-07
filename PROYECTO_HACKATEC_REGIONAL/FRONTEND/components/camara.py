@@ -6,6 +6,7 @@ import reflex as rx
 from ...estado_ui import EstadoUI
 from ...estilos import AMBAR, BORDE, ROJO, SOBRE_VIDEO, TEXTO, TEXTO_2, TEXTO_3, VELO, VIDEO, tarjeta, titulo
 from ...state import State
+from .mosaico import video_en_bucle
 
 _NIVEL = {
     "safe": ("Sin riesgo", "green"),
@@ -329,35 +330,50 @@ def dialogo_vincular() -> rx.Component:
     )
 
 
+def _ultima_captura(camara) -> rx.Component:
+    return rx.cond(
+        camara["snapshot_url"] != "",
+        _marco(
+            rx.image(
+                src=camara["snapshot_url"],
+                alt="Última captura de la cámara, sin identificación de personas",
+                width="100%",
+                height="100%",
+                object_fit="contain",
+            ),
+            _rotulo("ÚLTIMA CAPTURA · ", camara["hora"], top="8px", right="8px"),
+        ),
+        _aviso("video-off", "Esta cámara aún no tiene capturas. Su imagen aparecerá con su primera alerta."),
+    )
+
+
 def _captura() -> rx.Component:
-    """Cámara del mosaico sin transmisión propia: su última captura de evidencia."""
+    """Cámara del mosaico sin transmisión propia: su video de demostración (ya anotado
+    por el Edge AI) o, si no tiene, su última captura de evidencia."""
     camara = EstadoUI.proyeccion
     return rx.vstack(
         rx.cond(
-            camara["snapshot_url"] != "",
+            camara["video_url"] != "",
             _marco(
-                rx.image(
-                    src=camara["snapshot_url"],
-                    alt="Última captura de la cámara, sin identificación de personas",
-                    width="100%",
-                    height="100%",
-                    object_fit="contain",
-                ),
-                _rotulo("ÚLTIMA CAPTURA · ", camara["hora"], top="8px", right="8px"),
+                video_en_bucle(camara["video_url"], style={"objectFit": "contain"}),
+                _rotulo("VIDEO DE DEMOSTRACIÓN", top="8px", right="8px"),
             ),
-            _aviso("video-off", "Esta cámara aún no tiene capturas. Su imagen aparecerá con su primera alerta."),
+            _ultima_captura(camara),
         ),
         rx.hstack(
-            rx.badge(camara["etiqueta"], color_scheme="gray", variant="soft"),
+            rx.badge(camara["etiqueta"], color_scheme="gray", variant="surface"),
             rx.text(camara["nombre"], size="2", color=TEXTO_2),
             rx.spacer(),
-            rx.button(
-                rx.icon("radio", size=14),
-                "Volver a en vivo",
-                on_click=EstadoUI.proyectar_vivo,
-                variant="soft",
-                size="1",
-                cursor="pointer",
+            rx.cond(
+                State.cam_vinculada,
+                rx.button(
+                    rx.icon("radio", size=14),
+                    "Volver a en vivo",
+                    on_click=EstadoUI.proyectar_vivo,
+                    variant="soft",
+                    size="1",
+                    cursor="pointer",
+                ),
             ),
             align="center",
             width="100%",

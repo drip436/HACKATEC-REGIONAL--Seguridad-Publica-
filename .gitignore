@@ -10,6 +10,9 @@ assets/external/
 
 # Edge AI: evidencias locales y pesos del modelo
 static/capturas/
+# Videos de demostración ya anotados y su índice (EDGE_AI/tools/preprocesar_video.py)
+static/videos/
+EDGE_AI/videos/
 *.pt
 .venv/
 reflex.log

@@ -1,4 +1,4 @@
-"""Mosaico CCTV: diez celdas con la última imagen de cada cámara. Un clic la proyecta."""
+"""Mosaico CCTV: diez celdas con el video o la última imagen de cada cámara. Un clic la proyecta."""
 
 import reflex as rx
 
@@ -11,26 +11,40 @@ def _imagen(src, alt: str) -> rx.Component:
     return rx.image(src=src, alt=alt, width="100%", height="100%", object_fit="cover", loading="lazy")
 
 
+def _sin_video(tile) -> rx.Component:
+    return rx.cond(
+        tile["snapshot_url"] != "",
+        _imagen(tile["snapshot_url"], "Última captura de la cámara"),
+        rx.center(
+            rx.text(
+                rx.cond(tile["activa"], "SIN CAPTURAS", "SIN SEÑAL"),
+                font_size="9px",
+                letter_spacing="0.08em",
+                color=TEXTO_3,
+            ),
+            width="100%",
+            height="100%",
+            class_name="so-sin-senal",
+        ),
+    )
+
+
+def video_en_bucle(src, **props) -> rx.Component:
+    """Video de demostración: se reproduce solo, sin sonido y en bucle, como un monitor CCTV."""
+    return rx.el.video(src=src, auto_play=True, loop=True, muted=True, plays_inline=True, preload="auto", width="100%", height="100%", **props)
+
+
 def _celda(tile) -> rx.Component:
-    """La celda de la cámara vinculada muestra su transmisión; las demás, su última captura."""
+    """La cámara vinculada muestra su transmisión; las de demostración, su video ya anotado
+    por el Edge AI; las demás, su última captura."""
     return rx.box(
         rx.cond(
             tile["en_vivo"] & State.edge_en_linea,
             _imagen(State.url_transmision, "Miniatura en vivo de la cámara vinculada"),
             rx.cond(
-                tile["snapshot_url"] != "",
-                _imagen(tile["snapshot_url"], "Última captura de la cámara"),
-                rx.center(
-                    rx.text(
-                        rx.cond(tile["activa"], "SIN CAPTURAS", "SIN SEÑAL"),
-                        font_size="9px",
-                        letter_spacing="0.08em",
-                        color=TEXTO_3,
-                    ),
-                    width="100%",
-                    height="100%",
-                    class_name="so-sin-senal",
-                ),
+                tile["video_url"] != "",
+                video_en_bucle(tile["video_url"], style={"objectFit": "cover"}),
+                _sin_video(tile),
             ),
         ),
         rx.hstack(
