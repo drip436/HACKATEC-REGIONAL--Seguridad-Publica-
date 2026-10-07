@@ -91,7 +91,8 @@ class EstadoUI(State):
         ultima: dict[str, dict] = {}
         en_alerta: set[str] = set()
         for alerta in self.alertas:  # de la más reciente a la más antigua
-            if alerta["snapshot_url"]:
+            # Una alerta descartada como falsa alarma deja de ser la imagen de su cámara.
+            if alerta["snapshot_url"] and alerta["estado"] != "descartado":
                 ultima.setdefault(alerta["camara_id"], alerta)
             if alerta["estado"] == "pendiente" and alerta["severidad"] in SEVERIDADES_VIOLENCIA:
                 en_alerta.add(alerta["camara_id"])
