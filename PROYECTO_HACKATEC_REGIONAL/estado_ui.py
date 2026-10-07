@@ -86,13 +86,18 @@ class EstadoUI(State):
     @rx.var
     def mosaico(self) -> list[Tile]:
         """Diez celdas de cámaras reales: la vinculada primero, luego el inventario (activas
-        antes). La miniatura es la captura de evidencia más reciente de cada cámara. Los
+        antes). La miniatura es la captura más reciente de una alerta alta o crítica. Los
         videos de demostración van aparte (`camaras_demo`)."""
         ultima: dict[str, dict] = {}
         en_alerta: set[str] = set()
         for alerta in self.alertas:  # de la más reciente a la más antigua
-            # Una alerta descartada como falsa alarma deja de ser la imagen de su cámara.
-            if alerta["snapshot_url"] and alerta["estado"] != "descartado":
+            # Imagen de la cámara: solo capturas de alertas altas o críticas (marco rojo).
+            # Las de nivel sospechoso (marco amarillo) y las descartadas no se muestran.
+            if (
+                alerta["snapshot_url"]
+                and alerta["estado"] != "descartado"
+                and alerta["severidad"] in SEVERIDADES_VIOLENCIA
+            ):
                 ultima.setdefault(alerta["camara_id"], alerta)
             if alerta["estado"] == "pendiente" and alerta["severidad"] in SEVERIDADES_VIOLENCIA:
                 en_alerta.add(alerta["camara_id"])
