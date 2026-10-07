@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/logo-sentinelops.jpg" alt="SentinelOps: seguridad integral y monitoreo" width="437">
+</p>
+
 # SentinelOps
 
 Sistema de monitoreo de seguridad pública con IA: un sensor analiza el video de una cámara, detecta conductas de riesgo y avisa a un panel donde una persona decide qué hacer. Proyecto del HackaTec InnovaTecNM 2026, reto de Seguridad Pública.
