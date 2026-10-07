@@ -2,7 +2,7 @@
 
 import reflex as rx
 
-from ...estilos import BORDE, TEXTO_2, TEXTO_3, insignia_estado, insignia_severidad
+from ...estilos import BORDE, SUPERFICIE_2, TEXTO_2, TEXTO_3, insignia_estado, insignia_severidad
 from ...modelos import DESTINOS, MOTIVOS_DESCARTE
 from ...state import State
 
@@ -16,16 +16,16 @@ def _captura(alerta) -> rx.Component:
             width="100%",
             max_height="260px",
             object_fit="contain",
-            border_radius="12px",
-            background="#000",
+            border_radius="8px",
+            background="#111827",
         ),
         rx.center(
             rx.text("Sin captura disponible para este evento", color=TEXTO_3, size="2"),
             width="100%",
             height="160px",
             border=BORDE,
-            border_radius="12px",
-            background="rgba(15, 23, 42, 0.6)",
+            border_radius="8px",
+            background=SUPERFICIE_2,
         ),
     )
 
@@ -69,7 +69,6 @@ def _acciones() -> rx.Component:
                 "Confirmar y despachar",
                 on_click=State.confirmar,
                 loading=State.procesando,
-                color_scheme="green",
                 size="3",
                 flex="1",
             ),
@@ -95,7 +94,6 @@ def _despacho_pendiente(alerta) -> rx.Component:
             "Despachar",
             on_click=State.confirmar,
             loading=State.procesando,
-            color_scheme="green",
             size="3",
             width="100%",
         ),
@@ -165,7 +163,11 @@ def _atencion_campo(alerta) -> rx.Component:
                     width="100%",
                 ),
                 rx.text(
-                    "Atender envía una patrulla por las calles hasta el lugar; el caso se cierra cuando llega.",
+                    rx.cond(
+                        State.unidad_cercana_sel != "",
+                        rx.text.span("Saldrá la patrulla libre más cercana: ", State.unidad_cercana_sel, "."),
+                        rx.text.span("No hay patrullas libres en este momento."),
+                    ),
                     size="1",
                     color=TEXTO_3,
                 ),
@@ -191,7 +193,7 @@ def modal_validacion() -> rx.Component:
                     width="100%",
                 ),
                 rx.dialog.description(
-                    "Evento ", rx.code(alerta["id"]), ". La decisión es del operador; la IA solo sugiere.",
+                    "Evento ", alerta["id"], " · ", alerta["hora"], ". Tú decides; el sistema solo sugiere.",
                     size="2",
                     color=TEXTO_2,
                 ),

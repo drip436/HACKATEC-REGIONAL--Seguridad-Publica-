@@ -24,11 +24,12 @@ from urllib.parse import urlsplit, urlunsplit
 from reflex.config import get_config
 
 from ..config import RAIZ_PROYECTO
-from ..models import AccionAuditoria
+from ..models import AccionAuditoria, CamaraSensor
 from ..schemas import CamaraVinculadaOut, VinculacionIn
 from ..utils.tiempo import ahora_utc
 from .auditoria import registrar
 from .db import transaccion
+from .sensores import buscar_por_codigo
 
 LOGGER = logging.getLogger("sentinelops.vinculacion")
 
@@ -120,6 +121,7 @@ class SupervisorEdge:
             threading.Thread(target=_leer_log, args=(proceso,), name="edge-log", daemon=True).start()
             self._actual = proceso
         LOGGER.info("Sensor lanzado (pid %d) para %s", popen.pid, fuente_visible)
+        _ubicar_sensor(sensor_id, datos.lat, datos.lng, operador, ip_origen)
         _auditar(
             AccionAuditoria.CAMARA_VINCULADA,
             operador,
@@ -177,6 +179,30 @@ def _leer_log(proceso: _Proceso) -> None:
         linea = linea.rstrip()
         if linea:
             proceso.log.append(linea[-300:])
+
+
+def _ubicar_sensor(sensor_id: str, lat: float, lng: float, operador: str, ip_origen: str) -> None:
+    """Si la cámara ya estaba registrada (se vuelve a vincular con el mismo nombre en
+    otro lugar), su posición pasa a ser la que indicó el operador, sin redondeos.
+    Si no existe, el backend la autorregistra con la coordenada de su primera alerta."""
+    with transaccion() as session:
+        sensor: CamaraSensor | None = buscar_por_codigo(session, sensor_id)
+        if sensor is None or (sensor.latitud, sensor.longitud) == (lat, lng):
+            return
+        anterior = [sensor.latitud, sensor.longitud]
+        sensor.latitud, sensor.longitud = lat, lng
+        sensor.actualizado_en = ahora_utc()
+        session.add(sensor)
+        session.flush()
+        registrar(
+            session,
+            accion=AccionAuditoria.SENSOR_ACTUALIZADO,
+            usuario_o_nodo=f"operador:{operador}",
+            ip_origen=ip_origen,
+            entidad="camaras_sensores",
+            entidad_id=sensor.id,
+            detalle={"codigo": sensor_id, "cambios": {"coordenadas": {"anterior": anterior, "nuevo": [lat, lng]}}},
+        )
 
 
 def _auditar(accion: AccionAuditoria, operador: str, ip_origen: str, detalle: dict) -> None:

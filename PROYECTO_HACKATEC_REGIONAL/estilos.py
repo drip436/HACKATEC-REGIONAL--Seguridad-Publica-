@@ -1,24 +1,41 @@
-"""Paleta y estilos compartidos del panel (tema oscuro fijo)."""
+"""Paleta y estilos compartidos del panel (tema claro, sobrio).
+
+Un solo color de acento (verde azulado) para lo interactivo. Los demás colores
+tienen un significado fijo y no se usan para decorar: rojo = incidente,
+azul = patrulla, verde = caso resuelto.
+"""
 
 import reflex as rx
 
-FONDO = "#020817"
-SUPERFICIE = "rgba(15, 23, 42, 0.8)"
-BORDE = "1px solid rgba(148, 163, 184, 0.16)"
-TEXTO = "#f8fafc"
-TEXTO_2 = "#cbd5e1"
-TEXTO_3 = "#94a3b8"
-ACENTO = "#38bdf8"
+FONDO = "#f5f6f8"
+SUPERFICIE = "#ffffff"
+SUPERFICIE_2 = "#f9fafb"
+LINEA = "#e5e7eb"
+BORDE = f"1px solid {LINEA}"
+TEXTO = "#111827"
+TEXTO_2 = "#4b5563"
+TEXTO_3 = "#6b7280"
+ACENTO = "#0f766e"
+ACENTO_SUAVE = "#ecfdf5"
+
+ROJO = "#dc2626"
+AZUL = "#2563eb"
+VERDE = "#16a34a"
 
 # Colores de estado: reservados para severidad y estado, nunca para series.
-COLOR_SEVERIDAD = {"critica": "#f43f5e", "alta": "#f97316", "media": "#fbbf24", "baja": "#22c55e"}
-COLOR_ESTADO = {"pendiente": "#fbbf24", "validado": "#38bdf8", "confirmado": "#22c55e", "descartado": "#94a3b8"}
+COLOR_SEVERIDAD = {"critica": "#b91c1c", "alta": "#c2410c", "media": "#a16207", "baja": "#4b5563"}
+COLOR_ESTADO = {
+    "pendiente": "#a16207",
+    "validado": "#0f766e",
+    "confirmado": "#15803d",
+    "descartado": "#6b7280",
+}
 
 TARJETA = {
     "width": "100%",
-    "padding": "1rem",
+    "padding": "1.25rem",
     "border": BORDE,
-    "border_radius": "18px",
+    "border_radius": "12px",
     "background": SUPERFICIE,
 }
 
@@ -29,21 +46,28 @@ def tarjeta(*hijos, **props) -> rx.Component:
 
 def titulo(texto: str, *derecha: rx.Component) -> rx.Component:
     return rx.hstack(
-        rx.heading(texto, size="4", color=TEXTO),
+        rx.heading(texto, size="3", weight="medium", color=TEXTO),
         *derecha,
         justify="between",
         align="center",
         width="100%",
         wrap="wrap",
+        gap="0.5rem",
     )
 
 
 def _insignia(texto, valor, colores: dict[str, str]) -> rx.Component:
-    color = rx.match(valor, *colores.items(), "#6366f1")
-    return rx.badge(
+    color = rx.match(valor, *colores.items(), TEXTO_2)
+    return rx.text.span(
+        rx.box(width="6px", height="6px", border_radius="50%", background=color, flex_shrink="0"),
         texto,
-        variant="outline",
-        style={"color": color, "boxShadow": "inset 0 0 0 1px currentColor", "fontWeight": "700"},
+        display="inline-flex",
+        align_items="center",
+        gap="0.375rem",
+        font_size="12px",
+        font_weight="500",
+        color=color,
+        white_space="nowrap",
     )
 
 

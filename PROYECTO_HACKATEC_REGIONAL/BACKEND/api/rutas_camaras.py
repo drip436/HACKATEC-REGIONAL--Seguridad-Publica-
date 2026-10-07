@@ -4,6 +4,7 @@ from fastapi import APIRouter
 from starlette.concurrency import run_in_threadpool
 
 from ..schemas import RESPUESTAS_ERROR, CamaraVinculadaOut, VinculacionIn
+from ..services.geocodificacion import verificar_en_tierra
 from ..services.vinculacion import SUPERVISOR
 from .dependencias import IpCliente, OperadorAutenticado
 
@@ -20,6 +21,7 @@ async def estado_camara() -> CamaraVinculadaOut:
 @router.post("", response_model=CamaraVinculadaOut)
 async def vincular_camara(datos: VinculacionIn, ip: IpCliente) -> CamaraVinculadaOut:
     """Lanza el sensor Edge AI sobre la cámara indicada (reemplaza la anterior)."""
+    await run_in_threadpool(verificar_en_tierra, datos.lat, datos.lng)
     return await run_in_threadpool(SUPERVISOR.vincular, datos, operador="api:operador", ip_origen=ip)
 
 

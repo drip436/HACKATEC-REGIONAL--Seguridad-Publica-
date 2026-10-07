@@ -5,13 +5,37 @@ teléfono…), detecta **personas con esqueleto, vehículos y armas** con
 YOLOv8-Pose + YOLOv8 COCO y evalúa reglas de comportamiento sobre una zona de
 vigilancia:
 
-| Regla | Nivel | Se envía al backend como |
-|---|---|---|
-| Vehículo detenido en la zona | amarillo | `merodeo` (media) |
-| Persona que permanece en la zona | amarillo | `merodeo` (media) |
-| Persona agachada / ocultándose en la zona | rojo | `traspaso_perimetro` (alta) |
-| Proximidad invasiva sostenida entre personas | rojo | `aglomeracion` (alta) |
-| Arma o manos arriba | rojo | `traspaso_perimetro` (crítica) |
+Las reglas buscan **conductas**, no gestos sueltos: levantar las manos,
+agacharse o estar junto a otra persona no es un delito por sí mismo; lo es la
+combinación con otra persona, un arma o el movimiento (`sentinelops/zone.py`).
+
+| Conducta | Cuándo dispara | Nivel | Se envía como |
+|---|---|---|---|
+| Asalto con arma | arma en la mano (≥ 0.5 s) de alguien que está frente a otra persona | rojo | `traspaso_perimetro` (crítica) |
+| Intento de homicidio | golpes repetidos o arma sobre una persona en el suelo, o arma + golpes | rojo | `traspaso_perimetro` (crítica) |
+| Posible secuestro | una persona arrastra o somete a otra (contacto ≥ 1.5 s) junto a un vehículo | rojo | `traspaso_perimetro` (crítica) |
+| Intento de asalto | alguien con las manos arriba ≥ 1 s y otra persona encima o apuntándole con el brazo extendido (si los dos las levantan no cuenta) | rojo | `traspaso_perimetro` (crítica) |
+| Agresión física | golpes repetidos (≥ 3 en 2.5 s) o embestida con el brazo estirado contra otra persona | rojo | `aglomeracion` (alta) |
+| Persona sometida | forcejeo o arrastre sostenido sin vehículo cerca | rojo | `traspaso_perimetro` (alta) |
+| Persona sospechosa | en la zona ≥ 20 s, agachada ≥ 3 s sin interactuar, o portando un arma a solas | amarillo | `merodeo` / `traspaso_perimetro` (media o alta) |
+| Vehículo sospechoso | vehículo detenido en la zona ≥ 15 s | amarillo | `merodeo` (media) |
+
+Cada alerta lleva además `metadatos.conducta` (`intento_asalto`,
+`agresion_fisica`, `posible_secuestro`…), que es lo que lee el operador. Un
+rojo se sostiene 3 s para que no parpadee.
+
+Los gestos se leen del esqueleto en `sentinelops/detector.py` y exigen
+articulaciones vistas con certeza:
+
+- **Manos arriba**: las **dos** muñecas por encima de los hombros (≥ 0.10 del
+  torso) y los codos levantados. Un saludo o señalar con una mano no cuenta, y
+  funciona aunque la cabeza quede fuera de cuadro.
+- **Agachado**: piernas plegadas respecto al torso, con las caderas visibles.
+  Sin esqueleto solo cuenta una caja claramente horizontal (tumbado), no una
+  apenas más ancha que alta (sentado o medio tapado).
+
+Los tiempos de merodeo y de contacto se ajustan con `--loiter-person`,
+`--loiter-vehicle` y `--proximity`.
 
 Publica el **video anotado en vivo** (MJPEG) y el estado del análisis, que el
 panel muestra en "Cámara en vivo"; guarda un fotograma de evidencia por alerta y
@@ -45,6 +69,16 @@ python -m sentinelops --source 0       # webcam
   corre sin ventana y tampoco calibra; `--zona-completa` vigila todo el cuadro.
 - La primera vez descarga los modelos (`yolov8n-pose.pt` y `yolov8n.pt`).
 - Un archivo de video se reproduce a su velocidad real y en bucle.
+
+**Perfil GPU para la demo.** Con una NVIDIA, el modelo `s` da articulaciones
+más fiables (menos gestos mal leídos) y se puede inferir en todos los frames:
+
+```bash
+python -m sentinelops --pose-model yolov8s-pose.pt --inference-every 1
+```
+
+Desde el panel, el backend lanza el sensor con sus valores por defecto; para
+usar el perfil GPU ahí, cambia `POSE_MODEL_PATH` en `sentinelops/config.py`.
 
 ## Video anotado y estado
 
@@ -92,7 +126,7 @@ tools/
   "sensor_id": "CAM-01-ACCESO-PRINCIPAL",
   "tipo_evento": "INTRUSION_PERIMETRO",
   "severidad": "ALTA",
-  "coordenadas": {"lat": 20.9673, "lng": -89.6242},
+  "coordenadas": {"lat": 17.987172, "lng": -92.919115},
   "timestamp": "2026-10-06T10:45:00Z",
   "evidencia_url": "/static/capturas/evento_1042.jpg",
   "ubicacion": "Parque de Santa Lucía",
@@ -159,7 +193,7 @@ python -m sentinelops --source http://192.168.1.50:8080/video --no-preview --zon
 | `--source` / `--camera` | qué video se analiza (índice, archivo, URL) |
 | `--sensor-id`, `--ubicacion`, `--lat`, `--lng` | identidad del sensor y su punto en el mapa |
 | `--pose-model`, `--object-model`, `--no-objects`, `--conf`, `--weapon-conf`, `--vehicle-conf` | modelos y umbrales |
-| `--loiter-person S`, `--loiter-vehicle S`, `--proximity S` | tiempos de las reglas |
+| `--loiter-person S`, `--loiter-vehicle S`, `--proximity S` | tiempos de merodeo y de contacto físico |
 | `--inference-every N` | inferencia 1 de cada N frames |
 | `--cooldown S` | espera mínima entre alertas del mismo incidente (una escalada avisa igual) |
 | `--no-calibrate`, `--no-preview`, `--zona-completa` | zona por defecto / sin ventana / todo el cuadro |
@@ -208,9 +242,11 @@ python -m sentinelops --backend-url http://127.0.0.1:8001/api/v1/eventos  # mock
 
 ### 4. Verificar la alerta, la evidencia y el cooldown
 
-1. Dibuja la zona y confirma con `c`. Permanece dentro unos segundos (merodeo,
-   amarillo) o agáchate / levanta las manos (rojo): el borde y el polígono cambian
-   de color y el HUD muestra la regla activa.
+1. Dibuja la zona y confirma con `c`. Permanece dentro 20 s o agáchate 3 s
+   (persona sospechosa, amarillo). Para un rojo hacen falta dos personas: una
+   levanta las dos manos y la otra se le pega o le apunta con el brazo
+   (intento de asalto), o una se abalanza sobre la otra (agresión física). El
+   borde y el polígono cambian de color y el HUD muestra la conducta.
 2. En la terminal del sensor aparece `ALERTA <nivel> id=1 motivo=...` y
    luego `Alerta enviada (201) id=... ...`.
 3. Con el backend real, la alerta aparece como `pendiente` en el panel y en

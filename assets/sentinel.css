@@ -1,0 +1,8 @@
+/* Fuente del panel en todo Radix, incluidos los diálogos (se montan fuera de la página). */
+.radix-themes {
+  --default-font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --heading-font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+body {
+  -webkit-font-smoothing: antialiased;
+}

@@ -159,10 +159,27 @@ CREATE INDEX IF NOT EXISTS ix_atenciones_campo_llegada_estimada ON atenciones_ca
 -- escribir nada. El backend se conecta con el usuario "postgres" (dueño de las
 -- tablas) por la cadena de conexión, así que no le afecta.
 -- -----------------------------------------------------------------------------
+-- Flota regional (Sur-Sureste). El backend carga las 189 unidades de demostración
+-- desde BACKEND/datos/flota_sursureste.json al iniciar, sin tocar las existentes.
+CREATE TABLE IF NOT EXISTS unidades_policiales (
+    id         SERIAL PRIMARY KEY,
+    codigo     VARCHAR(32)  NOT NULL UNIQUE,
+    base       VARCHAR(160) NOT NULL,
+    estado     VARCHAR(40)  NOT NULL,
+    latitud    DOUBLE PRECISION NOT NULL,
+    longitud   DOUBLE PRECISION NOT NULL,
+    activa     BOOLEAN NOT NULL DEFAULT TRUE,
+    creado_en  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT ck_unidades_policiales_lat CHECK (latitud BETWEEN -90 AND 90),
+    CONSTRAINT ck_unidades_policiales_lng CHECK (longitud BETWEEN -180 AND 180)
+);
+CREATE INDEX IF NOT EXISTS ix_unidades_policiales_estado ON unidades_policiales (estado);
+
 ALTER TABLE camaras_sensores         ENABLE ROW LEVEL SECURITY;
 ALTER TABLE eventos_detectados       ENABLE ROW LEVEL SECURITY;
 ALTER TABLE despachos_interoperables ENABLE ROW LEVEL SECURITY;
 ALTER TABLE atenciones_campo         ENABLE ROW LEVEL SECURITY;
 ALTER TABLE bitacora_auditoria       ENABLE ROW LEVEL SECURITY;
+ALTER TABLE unidades_policiales      ENABLE ROW LEVEL SECURITY;
 
 COMMIT;

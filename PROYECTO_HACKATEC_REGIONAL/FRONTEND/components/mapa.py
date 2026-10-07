@@ -1,14 +1,12 @@
-"""Mapa de Mérida, Yucatán (Leaflet) envuelto como componente Reflex."""
+"""Mapa de la región Sur-Sureste con Leaflet, envuelto como componente Reflex."""
+
+import os
 
 import reflex as rx
 
 from ... import campus
-from ...estilos import TEXTO_2, TEXTO_3, tarjeta, titulo
+from ...estilos import AZUL, ROJO, TEXTO_2, TEXTO_3, VERDE, tarjeta, titulo
 from ...state import State
-
-ROJO = "#ef4444"
-AZUL = "#3b82f6"
-VERDE = "#22c55e"
 
 _ruta = rx.asset("mapa_leaflet.jsx", shared=True)
 
@@ -22,59 +20,95 @@ class MapaLeaflet(rx.NoSSRComponent):
 
     centro: rx.Var[list[float]]
     zoom: rx.Var[int]
-    cuadrantes: rx.Var[list[dict]]
     camaras: rx.Var[list[dict]]
     alertas: rx.Var[list[dict]]
+    unidades: rx.Var[list[dict]]
+    zonas: rx.Var[list[dict]]
     rondines: rx.Var[list[dict]]
     patrullas: rx.Var[list[dict]]
+    encuadre: rx.Var[list[list[float]]]
     foco: rx.Var[list[float]]
     calor: rx.Var[list[list[float]]]
     seleccion: rx.Var[str]
+    marcador: rx.Var[list[float]]
     altura: rx.Var[str]
 
     on_alerta: rx.EventHandler[rx.event.passthrough_event_spec(str)]
+    on_clic_mapa: rx.EventHandler[rx.event.passthrough_event_spec(float, float)]
+
+
+class MapaGoogle(MapaLeaflet):
+    """Google Maps (Maps JavaScript API) con las mismas props; si la llave falla,
+    el propio componente cae a MapaLeaflet en el navegador."""
+
+    tag = "MapaGoogle"
+
+    clave: rx.Var[str]
+
+
+# La llave del navegador queda visible en la página (así funciona Maps JavaScript API):
+# restríngela por "sitio web" en Google Cloud. Puede ser otra distinta a la del backend.
+_CLAVE_NAVEGADOR = (os.getenv("GOOGLE_MAPS_BROWSER_KEY") or os.getenv("GOOGLE_MAPS_API_KEY") or "").strip()
+
+
+def _componente(**props) -> rx.Component:
+    if _CLAVE_NAVEGADOR:
+        return MapaGoogle.create(clave=_CLAVE_NAVEGADOR, **props)
+    return MapaLeaflet.create(**props)
 
 
 def _mapa(**props) -> rx.Component:
-    return MapaLeaflet.create(
-        centro=State.centro,
-        zoom=campus.ZOOM,
-        cuadrantes=State.cuadrantes,
+    return _componente(
+        centro=campus.CENTRO_REGION,
+        zoom=campus.ZOOM_REGION,
         camaras=State.camaras_mapa,
-        rondines=State.puntos_rondin,
+        encuadre=State.encuadre,
         **props,
     )
 
 
+def _punto(color: str, borde: str = "2px solid #fff", radio: str = "50%", lado: str = "10px") -> rx.Component:
+    return rx.box(
+        width=lado,
+        height=lado,
+        border_radius=radio,
+        background=color,
+        border=borde,
+        box_shadow="0 0 0 1px rgba(17,24,39,.25)",
+        flex_shrink="0",
+    )
+
+
 def _leyenda_item(marca: rx.Component, texto: str) -> rx.Component:
-    return rx.hstack(marca, rx.text(texto, size="1", color=TEXTO_2), spacing="1", align="center")
+    return rx.hstack(marca, rx.text(texto, size="1", color=TEXTO_2), spacing="2", align="center")
+
+
+def _zona() -> rx.Component:
+    return rx.box(
+        width="14px", height="14px", border_radius="50%", background="rgba(220,38,38,.3)", border="1px solid rgba(220,38,38,.5)"
+    )
 
 
 def _leyenda(calor: bool = False) -> rx.Component:
-    rojo = (
-        _leyenda_item(
-            rx.box(width="22px", height="8px", border_radius="4px", background="linear-gradient(90deg, #7f1d1d, #dc2626, #fde68a)"),
-            "Concentración de alertas",
-        )
-        if calor
-        else _leyenda_item(
-            rx.box(width="10px", height="10px", border_radius="50%", background=ROJO), "Alerta de inseguridad (más grande = más grave)"
-        )
-    )
-    en_vivo = (
-        []
-        if calor
-        else [
-            _leyenda_item(rx.box(width="10px", height="10px", border_radius="50%", background=AZUL, border="2px solid #f8fafc"), "Patrulla"),
-            _leyenda_item(rx.box(width="10px", height="10px", border_radius="50%", background=VERDE), "Caso resuelto"),
+    if calor:
+        items = [
+            _leyenda_item(
+                rx.box(width="24px", height="8px", border_radius="4px", background="linear-gradient(90deg, #fecaca, #dc2626, #7f1d1d)"),
+                "Concentración de eventos",
+            ),
+            _leyenda_item(_punto("#fff", borde="2.5px solid #0f766e"), "Rondín sugerido"),
         ]
-    )
+    else:
+        items = [
+            _leyenda_item(_punto(ROJO), "Incidente abierto"),
+            _leyenda_item(_punto(VERDE), "Resuelto"),
+            _leyenda_item(_punto(AZUL), "Patrulla"),
+            _leyenda_item(_zona(), "Zona de riesgo"),
+        ]
     return rx.hstack(
-        rojo,
-        *en_vivo,
-        _leyenda_item(rx.box(width="10px", height="10px", border_radius="50%", border=f"2px solid {AZUL}"), "Rondín sugerido"),
-        _leyenda_item(rx.box(width="10px", height="10px", border_radius="2px", background="#e2e8f0"), "Cámara"),
-        spacing="3",
+        *items,
+        _leyenda_item(_punto("#374151", borde="1.5px solid #fff", radio="2px", lado="9px"), "Cámara"),
+        spacing="4",
         wrap="wrap",
     )
 
@@ -82,26 +116,32 @@ def _leyenda(calor: bool = False) -> rx.Component:
 def _aviso_simulados() -> rx.Component:
     return rx.cond(
         State.hay_datos_simulados,
-        rx.badge(
-            "Datos simulados: no son cifras oficiales de incidencia",
-            color_scheme="amber",
-            variant="soft",
-            style={"whiteSpace": "normal", "maxWidth": "100%", "height": "auto"},
-        ),
+        rx.text("Incluye datos de demostración", size="1", color=TEXTO_3),
     )
 
 
 def mapa_en_vivo() -> rx.Component:
     return tarjeta(
         rx.vstack(
-            titulo("Mérida, Yucatán · alertas en vivo", _aviso_simulados()),
+            titulo(
+                "Mapa de la región",
+                rx.hstack(
+                    _aviso_simulados(),
+                    rx.text(State.unidades_libres, " patrullas libres", size="1", color=TEXTO_3),
+                    spacing="3",
+                    align="center",
+                    wrap="wrap",
+                ),
+            ),
             _mapa(
                 alertas=State.puntos_mapa,
+                unidades=State.unidades,
+                zonas=State.zonas_riesgo,
                 patrullas=State.atenciones,
                 foco=State.mapa_foco,
                 seleccion=State.seleccion_id,
                 on_alerta=State.abrir_alerta,
-                altura="460px",
+                altura="480px",
             ),
             _leyenda(),
             spacing="3",
@@ -114,24 +154,36 @@ def mapa_de_calor() -> rx.Component:
     return tarjeta(
         rx.vstack(
             titulo(
-                "Mérida, Yucatán · mapa de calor",
+                "Dónde se concentran los eventos",
                 rx.hstack(
                     _aviso_simulados(),
-                    rx.text(State.total_historico, " eventos en el periodo", size="2", color=TEXTO_3),
+                    rx.text(State.total_historico, " eventos en el periodo", size="1", color=TEXTO_3),
                     spacing="3",
                     align="center",
                     wrap="wrap",
                     max_width="100%",
                 ),
             ),
-            _mapa(calor=State.puntos_calor, altura="420px"),
+            _mapa(calor=State.puntos_calor, rondines=State.puntos_rondin, altura="420px"),
             _leyenda(calor=True),
             rx.text(
-                "Más claro = más alertas en esa zona. Solo se usan ubicación, tipo y hora del evento.",
+                "Más oscuro = más eventos. Solo se usan ubicación, tipo y hora del evento.",
                 size="1",
                 color=TEXTO_3,
             ),
             spacing="3",
             width="100%",
         )
+    )
+
+
+def mapa_elegir_punto() -> rx.Component:
+    """Mini mapa del diálogo de vinculación: un clic fija la ubicación exacta de la cámara."""
+    return _componente(
+        centro=campus.CENTRO_REGION,
+        zoom=campus.ZOOM_REGION,
+        unidades=[],
+        marcador=State.marcador_form,
+        on_clic_mapa=State.marcar_en_mapa,
+        altura="220px",
     )

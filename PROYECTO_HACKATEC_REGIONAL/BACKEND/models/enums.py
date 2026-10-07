@@ -93,3 +93,4 @@ class AccionAuditoria(StrEnum):
     ATENCION_RESUELTA = "atencion.resuelta"
     CAMARA_VINCULADA = "camara.vinculada"
     CAMARA_DESVINCULADA = "camara.desvinculada"
+    EVENTO_UBICACION_CORREGIDA = "evento.ubicacion_corregida"

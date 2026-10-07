@@ -127,6 +127,25 @@ class AtencionCampo(_Base, table=True):
     llegada_en: datetime | None = Field(default=None, sa_column=_ts(nullable=True))
 
 
+class UnidadPolicial(_Base, table=True):
+    """Patrulla de la flota regional con su base. Las de demostración se cargan de
+    `datos/flota_sursureste.json`; se pueden editar o agregar directo en la tabla."""
+
+    __tablename__ = "unidades_policiales"
+    __table_args__ = (
+        sa.CheckConstraint("latitud BETWEEN -90 AND 90", name="ck_unidades_policiales_lat"),
+        sa.CheckConstraint("longitud BETWEEN -180 AND 180", name="ck_unidades_policiales_lng"),
+    )
+
+    codigo: str = Field(sa_column=sa.Column(sa.String(32), unique=True, nullable=False, index=True))
+    base: str = Field(sa_column=sa.Column(sa.String(160), nullable=False))
+    estado: str = Field(max_length=40, index=True)  # entidad federativa
+    latitud: float
+    longitud: float
+    activa: bool = Field(default=True)
+    creado_en: datetime = Field(default_factory=ahora_utc, sa_column=_ts())
+
+
 class BitacoraAuditoria(_Base, table=True):
     """Bitácora append-only encadenada por hash (cada registro sella al anterior).
     UPDATE/DELETE se bloquean con triggers creados en services/db.py."""

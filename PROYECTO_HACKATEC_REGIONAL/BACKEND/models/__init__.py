@@ -10,7 +10,14 @@ from .enums import (
     TipoEvento,
     TipoSensor,
 )
-from .tablas import AtencionCampo, BitacoraAuditoria, CamaraSensor, DespachoInteroperable, EventoDetectado
+from .tablas import (
+    AtencionCampo,
+    BitacoraAuditoria,
+    CamaraSensor,
+    DespachoInteroperable,
+    EventoDetectado,
+    UnidadPolicial,
+)
 
 __all__ = [
     "ALIAS_TIPO_EVENTO",
@@ -28,4 +35,5 @@ __all__ = [
     "NivelPrioridad",
     "TipoEvento",
     "TipoSensor",
+    "UnidadPolicial",
 ]

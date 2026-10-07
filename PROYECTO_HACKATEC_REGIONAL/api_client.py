@@ -112,6 +112,7 @@ def _alerta(evento: dict, despacho: dict | None = None) -> dict:
         "tipo": evento["tipo_evento"],
         "severidad": evento["nivel_prioridad"],
         "confianza": evento["metadata_json"].get("confianza", 0.0),
+        "conducta": evento["metadata_json"].get("conducta") or "",
         "timestamp": evento["fecha_deteccion"],
         "lat": evento["coordenadas"]["lat"],
         "lng": evento["coordenadas"]["lng"],
@@ -328,6 +329,38 @@ async def obtener_atenciones() -> list[dict]:
     if MOCK:
         return []
     return [_atencion(a) for a in await _pedir("GET", "/atenciones", params={"limit": 100})]
+
+
+def _unidad(dto: dict) -> dict:
+    return {
+        "id": dto["id"],
+        "base": dto["base"],
+        "lat": float(dto["lat"]),
+        "lng": float(dto["lng"]),
+        "estado": dto["estado"],
+        "evento_id": str(dto["evento_id"]) if dto.get("evento_id") is not None else "",
+    }
+
+
+async def ubicacion_automatica(url_camara: str = "") -> dict:
+    """GPS del teléfono-cámara o Wi-Fi + Google: {lat, lng, precision_m, fuente}."""
+    if MOCK:
+        raise ErrorAPI("La ubicación automática necesita el backend (modo simulado activo).")
+    return await _pedir("GET", "/ubicacion-automatica", params={"url": url_camara} if url_camara else None)
+
+
+async def geocodificar(consulta: str) -> list[dict]:
+    """Dirección, coordenadas o enlace de Google Maps -> lugares con lat/lng."""
+    if MOCK:
+        return []
+    return await _pedir("GET", "/geocodificar", params={"q": consulta})
+
+
+async def obtener_unidades() -> list[dict]:
+    """Flota de patrullas con su posición (las libres, en su base)."""
+    if MOCK:
+        return []
+    return [_unidad(u) for u in await _pedir("GET", "/unidades")]
 
 
 # ---- Cámara vinculada (sensor Edge AI lanzado por el backend) -----------------

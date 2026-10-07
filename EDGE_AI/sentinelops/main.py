@@ -176,7 +176,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--proximity",
         type=float,
         dest="proximity",
-        help=f"Segundos de proximidad invasiva -> ROJO. Def: {PROXIMITY_SECONDS}.",
+        help=f"Segundos de contacto físico (forcejeo/arrastre) -> ROJO. Def: {PROXIMITY_SECONDS}.",
     )
     parser.add_argument(
         "--inference-every",
@@ -577,6 +577,7 @@ def _raise_alert(
         confidence=trigger.confidence,
         bounding_box=trigger.bbox,
         ubicacion=config.ubicacion or None,
+        conducta=assessment.conducta,
     )
     LOGGER.warning(
         "ALERTA %s id=%d motivo=%s clase=%s conf=%.2f bbox=%s",
