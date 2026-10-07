@@ -13,3 +13,6 @@ static/capturas/
 *.pt
 .venv/
 reflex.log
+
+# Preferencias personales del editor
+.vscode/

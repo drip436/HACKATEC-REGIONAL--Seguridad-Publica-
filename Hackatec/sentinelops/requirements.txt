@@ -1,5 +1,0 @@
-opencv-python>=4.9,<5
-ultralytics>=8.1,<9
-requests>=2.31,<3
-numpy>=1.26,<3
-lap>=0.5,<1
