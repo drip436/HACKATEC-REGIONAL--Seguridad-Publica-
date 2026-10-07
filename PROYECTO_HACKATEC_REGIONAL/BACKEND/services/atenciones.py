@@ -131,8 +131,23 @@ def crear_atencion(datos: AtencionIn, *, ip_origen: str) -> ResultadoAtencion:
 
 
 def resolver_llegadas() -> list[AtencionOut]:
-    """Marca como resueltas las unidades cuya hora de llegada ya pasó."""
+    """Marca como resueltas las unidades cuya hora de llegada ya pasó.
+
+    Corre cada pocos segundos: primero una lectura barata y solo si alguna unidad
+    llegó se abre la transacción (que toma el candado de escritura). Con una base
+    remota y una red lenta, abrir una transacción en cada vuelta dejaba el candado
+    tomado casi siempre y las demás peticiones esperaban hasta el ReadTimeout.
+    """
     ahora = ahora_utc()
+    with lectura() as session:
+        pendiente = session.exec(
+            select(AtencionCampo.id)
+            .where(col(AtencionCampo.estado) == EstadoAtencion.EN_CAMINO.value)
+            .where(col(AtencionCampo.llegada_estimada) <= ahora)
+            .limit(1)
+        ).first()
+    if pendiente is None:
+        return []
     with transaccion() as session:
         llegadas = session.exec(
             select(AtencionCampo)
